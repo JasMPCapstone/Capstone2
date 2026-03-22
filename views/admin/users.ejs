@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Users — Admin — MedSupply Portal</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <%- include('../partials/header') %>
+  <main class="container main-content">
+    <h1>Manage users</h1>
+    <% if (typeof message !== 'undefined' && message) { %>
+      <div class="alert info"><%= message %></div>
+    <% } %>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Email</th>
+          <th>Full name</th>
+          <th>Role</th>
+          <th>Status</th>
+          <th>Created</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% users.forEach(function(u) { %>
+          <tr>
+            <td><%= u.id %></td>
+            <td><%= u.email %></td>
+            <td><%= u.full_name %></td>
+            <td><%= u.role %></td>
+            <td><%= u.is_active ? 'Active' : 'Deactivated' %></td>
+            <td><%= new Date(u.created_at).toLocaleDateString() %></td>
+            <td>
+              <% if (u.is_active) { %>
+                <% if (u.id !== user.userId) { %>
+                  <form action="/admin/users/<%= u.id %>/deactivate" method="post" style="display:inline;">
+                    <button type="submit" class="btn-link danger">Deactivate</button>
+                  </form>
+                <% } else { %>
+                  <span class="muted">(you)</span>
+                <% } %>
+              <% } else { %>
+                <form action="/admin/users/<%= u.id %>/reactivate" method="post" style="display:inline;">
+                  <button type="submit" class="btn-link">Reactivate</button>
+                </form>
+              <% } %>
+              <a href="/admin/users/<%= u.id %>/reset-password">Reset password</a>
+            </td>
+          </tr>
+        <% }); %>
+      </tbody>
+    </table>
+    <p><a href="/admin">Back to admin</a></p>
+  </main>
+  <%- include('../partials/footer') %>
+</body>
+</html>

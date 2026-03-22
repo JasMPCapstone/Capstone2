@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= doc.title || doc.original_filename %> — Med Supply Innovation</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <%- include('../partials/header') %>
+  <main class="doc-view-layout">
+    <div class="doc-view-preview <%= ['png','jpg','jpeg','gif','webp'].indexOf((doc.file_extension || '').toLowerCase()) >= 0 ? 'doc-view-preview-img' : '' %>">
+      <% var ext = (doc.file_extension || '').toLowerCase(); var isImage = ['png','jpg','jpeg','gif','webp'].indexOf(ext) >= 0; var isPdf = ext === 'pdf'; var isDocx = ['docx','doc'].indexOf(ext) >= 0; %>
+      <% if (isImage) { %>
+        <img src="/documents/<%= doc.id %>/view" alt="<%= (doc.title || doc.original_filename) %>" class="doc-view-img">
+      <% } else if (isPdf) { %>
+        <iframe src="/documents/<%= doc.id %>/view" class="doc-view-iframe" title="Document preview"></iframe>
+      <% } else if (isDocx) { %>
+        <div class="doc-view-docx-container" id="docxPreviewContainer">
+          <div class="docx-wrapper" id="docxPreviewBody"></div>
+        </div>
+        <script src="https://unpkg.com/jszip@3.10.1/dist/jszip.min.js"></script>
+        <script src="https://unpkg.com/docx-preview@0.3.7/dist/docx-preview.min.js"></script>
+        <script>
+          (function() {
+            fetch('/documents/<%= doc.id %>/view', { credentials: 'same-origin' })
+              .then(function(r) { return r.blob(); })
+              .then(function(blob) {
+                return docx.renderAsync(blob, document.getElementById('docxPreviewBody'), null, { className: 'docx', inWrapper: true });
+              })
+              .catch(function(e) { document.getElementById('docxPreviewBody').innerHTML = '<p style="color:#666">Preview failed. <a href="/documents/<%= doc.id %>/download">Download file</a></p>'; });
+          })();
+        </script>
+      <% } else { %>
+        <div class="doc-view-no-preview">
+          <div class="doc-view-no-preview-icon"><%= ext.toUpperCase() %></div>
+          <p>Preview not available for this file type</p>
+          <a href="/documents/<%= doc.id %>/download" class="btn btn-primary">Download file</a>
+        </div>
+      <% } %>
+    </div>
+    <aside class="doc-view-sidebar">
+      <div class="doc-view-sidebar-header">
+        <h2 class="doc-view-sidebar-title"><%= doc.title || doc.original_filename %></h2>
+        <a href="/documents" class="doc-view-back">← Back</a>
+      </div>
+      <div class="doc-view-meta">
+        <div class="doc-view-meta-row">
+          <span class="doc-view-meta-label">File</span>
+          <span class="doc-view-meta-value"><%= doc.original_filename %></span>
+        </div>
+        <div class="doc-view-meta-row">
+          <span class="doc-view-meta-label">Type</span>
+          <span class="doc-view-meta-value"><%= doc.file_extension.toUpperCase() %></span>
+        </div>
+        <div class="doc-view-meta-row">
+          <span class="doc-view-meta-label">Size</span>
+          <span class="doc-view-meta-value"><%= (doc.file_size / 1024).toFixed(1) %> KB</span>
+        </div>
+        <div class="doc-view-meta-row">
+          <span class="doc-view-meta-label">Uploaded</span>
+          <span class="doc-view-meta-value"><%= new Date(doc.created_at).toLocaleString() %></span>
+        </div>
+        <% if (isAdmin) { %>
+        <div class="doc-view-meta-row">
+          <span class="doc-view-meta-label">Owner</span>
+          <span class="doc-view-meta-value"><%= doc.owner_name %> (<%= doc.owner_email %>)</span>
+        </div>
+        <% } %>
+        <% if (doc.description) { %>
+        <div class="doc-view-meta-row">
+          <span class="doc-view-meta-label">Description</span>
+          <span class="doc-view-meta-value"><%= doc.description %></span>
+        </div>
+        <% } %>
+        <% if (doc.tags) { %>
+        <div class="doc-view-meta-row">
+          <span class="doc-view-meta-label">Tags</span>
+          <span class="doc-view-meta-value"><%= doc.tags %></span>
+        </div>
+        <% } %>
+      </div>
+      <div class="doc-view-actions">
+        <a href="/documents/<%= doc.id %>/download" class="btn btn-primary doc-view-action-btn">Download</a>
+        <a href="/documents/<%= doc.id %>/edit" class="btn doc-view-action-btn">Edit</a>
+        <form action="/documents/<%= doc.id %>/delete" method="post" class="doc-view-action-form" onsubmit="return confirm('Delete this document?');">
+          <button type="submit" class="btn btn-danger doc-view-action-btn">Delete</button>
+        </form>
+      </div>
+    </aside>
+  </main>
+  <%- include('../partials/footer') %>
+</body>
+</html>

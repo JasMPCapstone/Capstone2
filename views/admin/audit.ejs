@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Audit log — Admin — MedSupply Portal</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <%- include('../partials/header') %>
+  <main class="container main-content">
+    <h1>Audit log</h1>
+    <form method="get" action="/admin/audit" class="filters">
+      <input type="text" name="action" placeholder="Action" value="<%= query && query.action ? query.action : '' %>">
+      <input type="number" name="userId" placeholder="User ID" value="<%= query && query.userId ? query.userId : '' %>">
+      <input type="date" name="dateFrom" value="<%= query && query.dateFrom ? query.dateFrom : '' %>">
+      <input type="date" name="dateTo" value="<%= query && query.dateTo ? query.dateTo : '' %>">
+      <button type="submit" class="btn">Filter</button>
+    </form>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Time</th>
+          <th>User</th>
+          <th>Action</th>
+          <th>Details</th>
+          <th>IP</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% logs.forEach(function(l) { %>
+          <tr>
+            <td><%= new Date(l.created_at).toLocaleString() %></td>
+            <td><%= l.email || ('ID ' + l.user_id) %></td>
+            <td><%= l.action %></td>
+            <td><%= l.details || '—' %></td>
+            <td><%= l.ip_address || '—' %></td>
+          </tr>
+        <% }); %>
+      </tbody>
+    </table>
+    <p class="muted">Showing up to 500 most recent entries.</p>
+    <p><a href="/admin">Back to admin</a></p>
+  </main>
+  <%- include('../partials/footer') %>
+</body>
+</html>

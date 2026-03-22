@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Edit — <%= doc.original_filename %> — Med Supply Innovation</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <%- include('../partials/header') %>
+  <main class="container main-content">
+    <a href="/documents/<%= doc.id %>" class="back-link">← Back to document</a>
+    <h1>Edit document metadata</h1>
+    <p class="edit-file-label">File: <%= doc.original_filename %></p>
+    <div class="edit-card">
+      <form method="post" action="/documents/<%= doc.id %>/edit" id="editForm">
+        <div class="form-section">
+          <h3 class="form-section-title">Document Type</h3>
+          <select name="documentType" id="documentType" class="input-select">
+            <option value="">—</option>
+            <option value="Facility Accreditation Certificate" <%= doc.document_type === 'Facility Accreditation Certificate' ? 'selected' : '' %>>Facility Accreditation Certificate</option>
+            <option value="Procurement Policy" <%= doc.document_type === 'Procurement Policy' ? 'selected' : '' %>>Procurement Policy</option>
+            <option value="Floor Plan" <%= doc.document_type === 'Floor Plan' ? 'selected' : '' %>>Floor Plan</option>
+            <option value="Inventory Report" <%= doc.document_type === 'Inventory Report' ? 'selected' : '' %>>Inventory Report</option>
+            <option value="Compliance Certificate" <%= doc.document_type === 'Compliance Certificate' ? 'selected' : '' %>>Compliance Certificate</option>
+            <option value="Other" <%= doc.document_type === 'Other' ? 'selected' : '' %>>Other</option>
+          </select>
+        </div>
+        <div class="form-section">
+          <h3 class="form-section-title">Document Details</h3>
+          <label for="title">Title</label>
+          <input type="text" id="title" name="title" class="input-text" value="<%= (doc.title || '').toString().replace(/"/g, '&quot;') %>" placeholder="<%= doc.original_filename %>">
+          <label for="description">Description (optional)</label>
+          <textarea id="description" name="description" rows="3" class="input-textarea" placeholder="Enter description"><%= doc.description || '' %></textarea>
+        </div>
+        <div class="form-section">
+          <h3 class="form-section-title">Tags</h3>
+          <p class="form-section-hint">Select one or more tags</p>
+          <div class="tag-pills" id="tagPills">
+            <% var currentTags = (doc.tags || '').toString().toLowerCase().split(/[\s,]+/).filter(Boolean); %>
+            <button type="button" class="tag-pill<%= currentTags.indexOf('compliance') >= 0 ? ' selected' : '' %>" data-tag="compliance"<%= currentTags.indexOf('compliance') >= 0 ? ' data-selected' : '' %>>compliance</button>
+            <button type="button" class="tag-pill<%= currentTags.indexOf('inventory') >= 0 ? ' selected' : '' %>" data-tag="inventory"<%= currentTags.indexOf('inventory') >= 0 ? ' data-selected' : '' %>>inventory</button>
+            <button type="button" class="tag-pill<%= currentTags.indexOf('accreditation') >= 0 ? ' selected' : '' %>" data-tag="accreditation"<%= currentTags.indexOf('accreditation') >= 0 ? ' data-selected' : '' %>>accreditation</button>
+            <button type="button" class="tag-pill<%= currentTags.indexOf('safety') >= 0 ? ' selected' : '' %>" data-tag="safety"<%= currentTags.indexOf('safety') >= 0 ? ' data-selected' : '' %>>safety</button>
+            <button type="button" class="tag-pill<%= currentTags.indexOf('quality') >= 0 ? ' selected' : '' %>" data-tag="quality"<%= currentTags.indexOf('quality') >= 0 ? ' data-selected' : '' %>>quality</button>
+            <button type="button" class="tag-pill<%= currentTags.indexOf('procurement') >= 0 ? ' selected' : '' %>" data-tag="procurement"<%= currentTags.indexOf('procurement') >= 0 ? ' data-selected' : '' %>>procurement</button>
+            <button type="button" class="tag-pill<%= currentTags.indexOf('regulatory') >= 0 ? ' selected' : '' %>" data-tag="regulatory"<%= currentTags.indexOf('regulatory') >= 0 ? ' data-selected' : '' %>>regulatory</button>
+            <button type="button" class="tag-pill<%= currentTags.indexOf('financial') >= 0 ? ' selected' : '' %>" data-tag="financial"<%= currentTags.indexOf('financial') >= 0 ? ' data-selected' : '' %>>financial</button>
+            <button type="button" class="tag-pill<%= currentTags.indexOf('other') >= 0 ? ' selected' : '' %>" data-tag="other"<%= currentTags.indexOf('other') >= 0 ? ' data-selected' : '' %>>other</button>
+          </div>
+          <input type="hidden" name="tags" id="tagsInput" value="<%= (doc.tags || '').toString().replace(/"/g, '&quot;') %>">
+        </div>
+        <div class="edit-actions">
+          <button type="submit" class="btn btn-primary">Save changes</button>
+          <a href="javascript:history.back()" class="btn btn-secondary">Cancel</a>
+        </div>
+      </form>
+    </div>
+  </main>
+  <%- include('../partials/footer') %>
+  <script>
+    (function() {
+      var tagPills = document.getElementById('tagPills');
+      var tagsInput = document.getElementById('tagsInput');
+      var selectedTags = [];
+      if (tagPills && tagsInput) {
+        tagPills.querySelectorAll('.tag-pill').forEach(function(btn) {
+          if (btn.hasAttribute('data-selected')) {
+            selectedTags.push(btn.getAttribute('data-tag'));
+            btn.classList.add('selected');
+          }
+          btn.addEventListener('click', function() {
+            var tag = this.getAttribute('data-tag');
+            var i = selectedTags.indexOf(tag);
+            if (i === -1) { selectedTags.push(tag); this.classList.add('selected'); }
+            else { selectedTags.splice(i, 1); this.classList.remove('selected'); }
+            tagsInput.value = selectedTags.join(', ');
+          });
+        });
+      }
+    })();
+  </script>
+</body>
+</html>
