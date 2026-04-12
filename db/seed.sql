@@ -1,6 +1,0 @@
--- MedSupply Portal - Seed Data (optional manual run)
--- Recommended: use "npm run setup-db" which applies schema and seeds with correct bcrypt hashes.
--- This file documents the seed accounts; actual insertion is done by scripts/setup-db.js.
--- Test accounts after running npm run setup-db:
---   Admin:  admin@medsupply.com / admin123
---   Client: client@example.com / client123
