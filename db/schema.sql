@@ -10,6 +10,15 @@ SET FOREIGN_KEY_CHECKS = 0;
 DROP TABLE IF EXISTS `audit_logs`;
 DROP TABLE IF EXISTS `documents`;
 DROP TABLE IF EXISTS `users`;
+DROP TABLE IF EXISTS `companies`;
+
+CREATE TABLE `companies` (
+  `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `name` VARCHAR(255) NOT NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE `users` (
   `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -19,20 +28,27 @@ CREATE TABLE `users` (
   `given_name` VARCHAR(255) DEFAULT NULL,
   `last_name` VARCHAR(255) DEFAULT NULL,
   `preferred_name` VARCHAR(255) DEFAULT NULL,
-  `address_state` VARCHAR(100) DEFAULT NULL,
-  `address_city` VARCHAR(100) DEFAULT NULL,
-  `address_suburb` VARCHAR(100) DEFAULT NULL,
+  `state` VARCHAR(100) DEFAULT NULL,
+  `city` VARCHAR(100) DEFAULT NULL,
+  `suburb` VARCHAR(100) DEFAULT NULL,
   `emergency_contact_name` VARCHAR(255) DEFAULT NULL,
   `emergency_contact_phone` VARCHAR(50) DEFAULT NULL,
   `company` VARCHAR(255) DEFAULT NULL,
-  `role` ENUM('CLIENT', 'ADMIN') NOT NULL DEFAULT 'CLIENT',
+  `company_id` INT UNSIGNED DEFAULT NULL,
+  `password_must_change` TINYINT(1) NOT NULL DEFAULT 0,
+  `profile_completed` TINYINT(1) NOT NULL DEFAULT 0,
+  `two_factor_secret` VARCHAR(255) DEFAULT NULL,
+  `two_factor_enabled` TINYINT(1) NOT NULL DEFAULT 0,
+  `role` VARCHAR(32) NOT NULL DEFAULT 'CLIENT',
   `is_active` TINYINT(1) NOT NULL DEFAULT 1,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE KEY `users_email_unique` (`email`),
   KEY `users_role` (`role`),
-  KEY `users_is_active` (`is_active`)
+  KEY `users_is_active` (`is_active`),
+  KEY `users_company_id` (`company_id`),
+  CONSTRAINT `users_company_fk` FOREIGN KEY (`company_id`) REFERENCES `companies` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ----------------------------
@@ -50,6 +66,7 @@ CREATE TABLE `documents` (
   `description` TEXT,
   `document_type` VARCHAR(100) DEFAULT NULL COMMENT 'e.g. Facility Accreditation Certificate',
   `tags` VARCHAR(500) DEFAULT NULL COMMENT 'Comma-separated optional tags',
+  `approval_status` VARCHAR(20) NOT NULL DEFAULT 'PENDING' COMMENT 'PENDING APPROVED REJECTED — system admin review',
   `deleted_at` DATETIME DEFAULT NULL,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

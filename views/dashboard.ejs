@@ -16,6 +16,9 @@
     <% if (typeof needMigration !== 'undefined' && needMigration) { %>
       <div class="alert error">Profile could not be saved. Run the database migration: db/migrate-profile-fields.sql</div>
     <% } %>
+    <% if (typeof onboardingProfile !== 'undefined' && onboardingProfile) { %>
+      <div class="alert info">Open <strong>Edit profile</strong> (pencil icon), save your details, then complete two-factor authentication when prompted.</div>
+    <% } %>
     <div class="dashboard-grid">
       <section class="dashboard-card welcome-card" id="profileCard">
         <div class="profile-card-header">
@@ -26,7 +29,7 @@
         </div>
         <h2 class="welcome-title">Welcome, <%= (profile.full_name || user.fullName || user.email || 'User').toString().trim() %>!</h2>
         <p class="welcome-email"><span class="icon icon-envelope"></span> <%= user.email %></p>
-        <% if (profile.company) { %><p class="welcome-company"><span class="icon icon-building"></span> <%= profile.company %></p><% } %>
+        <% if (profile.organization_name || profile.company) { %><p class="welcome-company"><span class="icon icon-building"></span> <%= profile.organization_name || profile.company %></p><% } %>
       </section>
       <section class="dashboard-card total-card">
         <span class="stat-value"><%= totalDocs %></span>
@@ -91,12 +94,20 @@
           <label>Emergency contact</label>
           <input type="text" name="emergencyContactName" value="<%= (profile.emergency_contact_name || '').toString().replace(/"/g, '&quot;') %>" placeholder="Name">
           <input type="text" name="emergencyContactPhone" value="<%= (profile.emergency_contact_phone || '').toString().replace(/"/g, '&quot;') %>" placeholder="Phone">
-          <label>Company</label>
+          <label>Organization</label>
+          <% if (profile.showOrgReadonly) { %>
+          <span class="input-wrap-readonly" title="Managed by your administrator">
+            <input type="text" class="input-readonly" value="<%= (profile.organization_name || profile.company || '—').toString().replace(/"/g, '&quot;') %>" readonly tabindex="-1">
+            <span class="input-readonly-icon" aria-hidden="true"></span>
+          </span>
+          <% } else { %>
           <select name="company" class="input-select">
             <option value="">—</option>
             <option value="Personal account" <%= profile.company === 'Personal account' ? 'selected' : '' %>>Personal account</option>
             <option value="MedSupply Innovations" <%= profile.company === 'MedSupply Innovations' ? 'selected' : '' %>>MedSupply Innovations</option>
           </select>
+          <% } %>
+          <p class="profile-2fa-row"><a href="/settings/2fa" class="btn btn-sm btn-secondary">2FA</a></p>
         </div>
         <div class="profile-edit-actions">
           <button type="submit" class="btn btn-primary">Save</button>

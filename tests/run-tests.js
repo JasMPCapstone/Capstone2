@@ -48,8 +48,8 @@ async function main() {
   // 1. Login page loads
   try {
     const r = await request('GET', '/login');
-    if (r.status === 200 && r.body.includes('Login')) {
-      console.log('OK  GET /login returns 200 and Login form');
+    if (r.status === 200 && (r.body.includes('Sign In') || r.body.includes('Sign in'))) {
+      console.log('OK  GET /login returns 200 and sign-in form');
       passed++;
     } else {
       console.log('FAIL GET /login', r.status, r.body.slice(0, 100));
@@ -64,17 +64,17 @@ async function main() {
     failed++;
   }
 
-  // 2. Login with valid credentials (client)
+  // 2. Login as system admin (staff accounts may be redirected through onboarding / 2FA)
   let cookie = null;
   try {
-    const body = new URLSearchParams({ email: 'client@example.com', password: 'client123' }).toString();
+    const body = new URLSearchParams({ email: 'admin@medsupply.com', password: 'admin123' }).toString();
     const r = await request('POST', '/login', {
       headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Content-Length': Buffer.byteLength(body) },
       body,
     });
     cookie = getCookie(r.headers);
-    if (r.status === 302 && (r.headers.location === '/documents' || r.headers.location === '/documents/') && cookie) {
-      console.log('OK  POST /login (client) redirects to /documents and sets session');
+    if (r.status === 302 && r.headers.location && r.headers.location.startsWith('/admin') && cookie) {
+      console.log('OK  POST /login (system admin) redirects to /admin and sets session');
       passed++;
     } else {
       console.log('FAIL POST /login', r.status, r.headers.location, cookie ? 'cookie set' : 'no cookie');

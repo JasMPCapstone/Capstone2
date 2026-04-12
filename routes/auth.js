@@ -3,6 +3,19 @@ const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const { pool } = require('../config/database');
 const { log } = require('../lib/audit');
+const {
+  create: createPendingLogin,
+  get: getPendingLogin,
+  consume: consumePendingLogin,
+} = require('../lib/pending-login');
+const { verifyToken } = require('../lib/twofactor');
+const { isSystemAdmin } = require('../lib/roles');
+const { applyUserToSession } = require('../lib/session-user');
+const { requireAuth } = require('../middleware/auth');
+
+function postLoginRedirect(role) {
+  return isSystemAdmin(role) ? '/admin' : '/dashboard';
+}
 
 const router = express.Router();
 
@@ -10,18 +23,160 @@ const RESET_TOKEN_EXPIRY_HOURS = 1;
 
 router.get('/login', (req, res) => {
   if (req.session && req.session.userId) {
-    return res.redirect(req.session.role === 'ADMIN' ? '/admin' : '/dashboard');
+    return res.redirect(postLoginRedirect(req.session.role));
   }
   const message = req.query.message || '';
   res.render('login', { message });
 });
 
-router.get('/register', (req, res) => {
+router.get('/login/2fa', (req, res) => {
   if (req.session && req.session.userId) {
-    return res.redirect('/dashboard');
+    return res.redirect(postLoginRedirect(req.session.role));
   }
-  const message = req.query.message || '';
-  res.render('register', { message });
+  const token = (req.query.token || '').trim();
+  if (!token) {
+    return res.redirect('/login?message=Please sign in first.');
+  }
+  res.render('login-2fa', { token, message: req.query.message || '' });
+});
+
+router.post('/login/2fa', async (req, res) => {
+  if (req.session && req.session.userId) {
+    return res.redirect(postLoginRedirect(req.session.role));
+  }
+  const token = (req.body.token || req.query.token || '').trim();
+  const code = (req.body.code || '').toString().trim().replace(/\s/g, '');
+  if (!token || !code) {
+    return res.status(400).render('login-2fa', {
+      token,
+      message: 'Please enter your 6-digit verification code.',
+      alertType: 'error',
+    });
+  }
+  const pending = getPendingLogin(token);
+  if (!pending) {
+    await log({ action: 'LOGIN_FAILURE', details: '2FA token expired or invalid', req });
+    return res.redirect('/login?message=Verification session expired. Please sign in again.');
+  }
+  try {
+    const [rows] = await pool.query(
+      'SELECT two_factor_secret FROM users WHERE id = ? AND two_factor_enabled = 1',
+      [pending.userId]
+    );
+    const user = rows[0];
+    if (!user || !user.two_factor_secret) {
+      await log({ action: 'LOGIN_FAILURE', details: '2FA not configured', req });
+      return res.redirect('/login?message=Two-factor authentication is not set up for this account.');
+    }
+    const valid = verifyToken(user.two_factor_secret, code);
+    if (!valid) {
+      await log({ action: 'LOGIN_FAILURE', details: `Invalid 2FA code for user ${pending.userId}`, req });
+      return res.status(400).render('login-2fa', {
+        token,
+        message: 'Invalid verification code. Please try again.',
+        alertType: 'error',
+      });
+    }
+    consumePendingLogin(token);
+    req.session.userId = pending.userId;
+    req.session.email = pending.email;
+    req.session.fullName = pending.fullName;
+    req.session.role = pending.role;
+    req.session.userActive = pending.userActive;
+    req.session.passwordMustChange = pending.passwordMustChange;
+    req.session.profileCompleted = pending.profileCompleted;
+    req.session.twoFactorEnabled = true;
+    req.session.companyId = pending.companyId;
+    await log({ userId: pending.userId, action: 'LOGIN_SUCCESS', details: `${pending.email} (2FA)`, req });
+    res.redirect(postLoginRedirect(pending.role));
+  } catch (err) {
+    console.error(err);
+    await log({ action: 'LOGIN_FAILURE', details: err.message, req });
+    res.status(500).render('login-2fa', {
+      token,
+      message: 'Verification failed. Please try again.',
+      alertType: 'error',
+    });
+  }
+});
+
+router.get('/register', (req, res) => {
+  res.redirect('/login?message=' + encodeURIComponent('Registration is not available. Your administrator will create your account.'));
+});
+
+router.get('/account/change-password', requireAuth, (req, res) => {
+  res.render('account/change-password', {
+    message: '',
+    navActive: null,
+    user: { passwordMustChange: !!req.session.passwordMustChange },
+  });
+});
+
+router.post('/account/change-password', requireAuth, async (req, res) => {
+  const pwUser = { passwordMustChange: !!req.session.passwordMustChange };
+  const current = (req.body.currentPassword || '').toString();
+  const nextPass = (req.body.newPassword || '').toString();
+  const confirm = (req.body.confirmPassword || '').toString();
+  if (!nextPass || nextPass.length < 6) {
+    return res.status(400).render('account/change-password', {
+      message: 'New password must be at least 6 characters.',
+      alertType: 'error',
+      navActive: null,
+      user: pwUser,
+    });
+  }
+  if (nextPass !== confirm) {
+    return res.status(400).render('account/change-password', {
+      message: 'New passwords do not match.',
+      alertType: 'error',
+      navActive: null,
+      user: pwUser,
+    });
+  }
+  try {
+    const [rows] = await pool.query(
+      'SELECT password_hash, password_must_change FROM users WHERE id = ?',
+      [req.session.userId]
+    );
+    const u = rows[0];
+    if (!u) return res.redirect('/login');
+    const needCurrent = !u.password_must_change;
+    if (needCurrent) {
+      if (!current || !(await bcrypt.compare(current, u.password_hash))) {
+        return res.status(400).render('account/change-password', {
+          message: 'Current password is incorrect.',
+          alertType: 'error',
+          navActive: null,
+          user: pwUser,
+        });
+      }
+    } else {
+      if (!current || !(await bcrypt.compare(current, u.password_hash))) {
+        return res.status(400).render('account/change-password', {
+          message: 'Temporary password is incorrect.',
+          alertType: 'error',
+          navActive: null,
+          user: pwUser,
+        });
+      }
+    }
+    const hash = await bcrypt.hash(nextPass, 10);
+    await pool.query(
+      'UPDATE users SET password_hash = ?, password_must_change = 0 WHERE id = ?',
+      [hash, req.session.userId]
+    );
+    req.session.passwordMustChange = false;
+    await log({ userId: req.session.userId, action: 'PASSWORD_CHANGED', details: 'User set new password', req });
+    res.redirect('/dashboard?onboarding=profile');
+  } catch (err) {
+    console.error(err);
+    res.status(500).render('account/change-password', {
+      message: 'Could not update password.',
+      alertType: 'error',
+      navActive: null,
+      user: pwUser,
+    });
+  }
 });
 
 router.post('/login', async (req, res) => {
@@ -36,7 +191,11 @@ router.post('/login', async (req, res) => {
 
   try {
     const [rows] = await pool.query(
-      'SELECT id, email, password_hash, full_name, role, is_active FROM users WHERE email = ? LIMIT 1',
+      `SELECT id, email, password_hash, full_name, role, is_active, two_factor_enabled,
+              COALESCE(password_must_change, 0) AS password_must_change,
+              COALESCE(profile_completed, 1) AS profile_completed,
+              company_id
+       FROM users WHERE email = ? LIMIT 1`,
       [emailTrim]
     );
     const user = rows[0];
@@ -54,14 +213,20 @@ router.post('/login', async (req, res) => {
       return res.status(401).render('login', { message: 'Invalid email or password.', alertType: 'error' });
     }
 
-    req.session.userId = user.id;
-    req.session.email = user.email;
-    req.session.fullName = user.full_name;
-    req.session.role = user.role;
-    req.session.userActive = !!user.is_active;
+    if (user.two_factor_enabled) {
+      const token = createPendingLogin(user.id, user.email, user.full_name, user.role, !!user.is_active, {
+        passwordMustChange: !!user.password_must_change,
+        profileCompleted: !!user.profile_completed,
+        twoFactorEnabled: true,
+        companyId: user.company_id,
+      });
+      return res.redirect('/login/2fa?token=' + encodeURIComponent(token));
+    }
+
+    applyUserToSession(req, user);
 
     await log({ userId: user.id, action: 'LOGIN_SUCCESS', details: user.email, req });
-    res.redirect(user.role === 'ADMIN' ? '/admin' : '/dashboard');
+    res.redirect(postLoginRedirect(user.role));
   } catch (err) {
     console.error(err);
     await log({ action: 'LOGIN_FAILURE', details: err.message, req });
@@ -69,38 +234,8 @@ router.post('/login', async (req, res) => {
   }
 });
 
-router.post('/register', async (req, res) => {
-  const { email, password, fullName } = req.body || {};
-  const emailTrim = (email || '').toString().trim().toLowerCase();
-  const pass = (password || '').toString();
-  const name = (fullName || '').toString().trim();
-
-  if (!emailTrim || !pass || !name) {
-    return res.status(400).render('register', { message: 'Email, password, and full name are required.', alertType: 'error' });
-  }
-  if (pass.length < 6) {
-    return res.status(400).render('register', { message: 'Password must be at least 6 characters.', alertType: 'error' });
-  }
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!emailRegex.test(emailTrim)) {
-    return res.status(400).render('register', { message: 'Please enter a valid email address.', alertType: 'error' });
-  }
-
-  try {
-    const hash = await bcrypt.hash(pass, 10);
-    await pool.query(
-      'INSERT INTO users (email, password_hash, full_name, role) VALUES (?, ?, ?, ?)',
-      [emailTrim, hash, name || emailTrim, 'CLIENT']
-    );
-    await log({ action: 'REGISTER', details: emailTrim, req });
-    res.redirect('/login?message=Registration successful. Please log in.');
-  } catch (err) {
-    if (err.code === 'ER_DUP_ENTRY') {
-      return res.status(400).render('register', { message: 'An account with this email already exists.', alertType: 'error' });
-    }
-    console.error(err);
-    res.status(500).render('register', { message: 'Registration failed. Please try again.', alertType: 'error' });
-  }
+router.post('/register', (req, res) => {
+  res.redirect('/login?message=' + encodeURIComponent('Registration is not available. Your administrator will create your account.'));
 });
 
 router.get('/forgot-password', (req, res) => {
@@ -161,7 +296,10 @@ router.post('/reset-password/:token', async (req, res) => {
     }
     const email = rows[0].email;
     const hash = await bcrypt.hash(password, 10);
-    await pool.query('UPDATE users SET password_hash = ? WHERE email = ?', [hash, email]);
+    await pool.query(
+      'UPDATE users SET password_hash = ?, password_must_change = 0 WHERE email = ?',
+      [hash, email]
+    );
     await pool.query('DELETE FROM password_reset_tokens WHERE token = ?', [token]);
     await log({ action: 'PASSWORD_RESET', details: email, req });
     res.redirect('/login?message=Password reset successfully. Please sign in.');

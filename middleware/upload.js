@@ -8,7 +8,7 @@ if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
 
-const ALLOWED_EXTENSIONS = (process.env.ALLOWED_EXTENSIONS || 'pdf,docx,xlsx,doc,xls,png,jpg,jpeg').toLowerCase().split(',').map(s => s.trim()).filter(Boolean);
+const ALLOWED_EXTENSIONS = (process.env.ALLOWED_EXTENSIONS || 'pdf,docx,xlsx,csv,doc,xls,png,jpg,jpeg').toLowerCase().split(',').map(s => s.trim()).filter(Boolean);
 const ALLOWED_SET = new Set(ALLOWED_EXTENSIONS);
 const MAX_SIZE = parseInt(process.env.MAX_UPLOAD_SIZE || '10485760', 10); // 10MB
 

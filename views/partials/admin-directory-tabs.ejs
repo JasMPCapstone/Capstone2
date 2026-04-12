@@ -1,0 +1,5 @@
+<nav class="admin-directory-tabs" aria-label="User management sections">
+  <a href="/admin/roles" class="admin-directory-tab <%= typeof adminDirectoryTab !== 'undefined' && adminDirectoryTab === 'roles' ? 'is-active' : '' %>">Roles management</a>
+  <a href="/admin/users" class="admin-directory-tab <%= typeof adminDirectoryTab !== 'undefined' && adminDirectoryTab === 'users' ? 'is-active' : '' %>">Users management</a>
+  <a href="/admin/companies" class="admin-directory-tab <%= typeof adminDirectoryTab !== 'undefined' && adminDirectoryTab === 'companies' ? 'is-active' : '' %>">Company management</a>
+</nav>

@@ -38,20 +38,32 @@ async function run() {
     await conn.query(schema);
     console.log('Schema applied.');
 
+    const [coResult] = await conn.query("INSERT INTO companies (name) VALUES ('Demo Healthcare Org')");
+    const companyId = coResult.insertId;
+
     const adminHash = bcrypt.hashSync('admin123', 10);
+    const clientAdminHash = bcrypt.hashSync('clientadmin123', 10);
     const clientHash = bcrypt.hashSync('client123', 10);
 
     await conn.query(
-      `INSERT INTO users (email, password_hash, full_name, role, is_active) VALUES (?, ?, ?, 'ADMIN', 1) ON DUPLICATE KEY UPDATE password_hash = VALUES(password_hash)`,
-      ['admin@medsupply.com', adminHash, 'Admin User']
+      `INSERT INTO users (email, password_hash, full_name, role, is_active, company_id, password_must_change, profile_completed, company)
+       VALUES (?, ?, ?, 'SYSTEM_ADMIN', 1, NULL, 0, 1, NULL)`,
+      ['admin@medsupply.com', adminHash, 'System Admin']
     );
     await conn.query(
-      `INSERT INTO users (email, password_hash, full_name, role, is_active) VALUES (?, ?, ?, 'CLIENT', 1) ON DUPLICATE KEY UPDATE password_hash = VALUES(password_hash)`,
-      ['client@example.com', clientHash, 'Test Client']
+      `INSERT INTO users (email, password_hash, full_name, role, is_active, company_id, password_must_change, profile_completed, company)
+       VALUES (?, ?, ?, 'CLIENT_ADMIN', 1, ?, 0, 1, ?)`,
+      ['clientadmin@example.com', clientAdminHash, 'Client Admin', companyId, 'Demo Healthcare Org']
     );
-    console.log('Seed users created/updated.');
-    console.log('  Admin:  admin@medsupply.com / admin123');
-    console.log('  Client: client@example.com / client123');
+    await conn.query(
+      `INSERT INTO users (email, password_hash, full_name, role, is_active, company_id, password_must_change, profile_completed, company)
+       VALUES (?, ?, ?, 'CLIENT', 1, ?, 0, 1, ?)`,
+      ['client@example.com', clientHash, 'Staff User', companyId, 'Demo Healthcare Org']
+    );
+    console.log('Seed data created.');
+    console.log('  System admin:   admin@medsupply.com / admin123');
+    console.log('  Client admin:   clientadmin@example.com / clientadmin123');
+    console.log('  Staff:          client@example.com / client123');
   } catch (err) {
     console.error('Setup failed:', err.message || err.code || String(err));
     if (err.code) console.error('Error code:', err.code);

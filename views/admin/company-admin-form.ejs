@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Create client admin — MedSupply Portal</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <%- include('../partials/header') %>
+  <main class="container main-content admin-main">
+    <header class="admin-page-head">
+      <p class="admin-kicker"><a href="/admin" class="admin-crumb">System administration</a> / <a href="/admin/companies" class="admin-crumb">Company management</a> / New client admin</p>
+      <p class="admin-page-subline">Client administrator for <%= company.name %></p>
+      <p class="admin-page-lede">
+        This person becomes the <strong>client admin</strong> for the organization: they complete first-time sign-in, add staff accounts, and oversee documents for their company.
+        Share the temporary password through a secure channel; they will be required to change it on first login.
+      </p>
+    </header>
+
+    <% if (typeof message !== 'undefined' && message) { %>
+      <div class="alert error"><%= message %></div>
+    <% } %>
+
+    <section class="settings-card admin-form-card">
+      <h2 class="admin-card-title">Account details</h2>
+      <form method="post" action="/admin/companies/<%= company.id %>/admins" class="settings-form">
+        <label for="fullName">Full name</label>
+        <input type="text" id="fullName" name="fullName" required class="input-text" autocomplete="name">
+        <label for="email">Work email</label>
+        <input type="email" id="email" name="email" required class="input-text" autocomplete="off">
+        <label for="tempPassword">Temporary password</label>
+        <input type="text" id="tempPassword" name="tempPassword" required minlength="6" class="input-text" autocomplete="new-password" aria-describedby="pw-hint">
+        <p id="pw-hint" class="muted form-hint">Minimum 6 characters. User must change this after signing in.</p>
+        <button type="submit" class="btn btn-primary">Create client administrator</button>
+      </form>
+    </section>
+  </main>
+  <%- include('../partials/footer') %>
+</body>
+</html>

@@ -9,33 +9,80 @@
 </head>
 <body>
   <%- include('../partials/header') %>
-  <main class="container main-content">
-    <a href="/dashboard" class="back-link">← Back to Dashboard</a>
-    <h1>My Documents</h1>
-    <p class="page-count"><%= typeof documents !== 'undefined' ? documents.length : 0 %> documents</p>
-    <form method="get" action="/documents" class="toolbar">
-      <input type="search" name="q" placeholder="Search documents..." value="<%= typeof query !== 'undefined' && query.q ? query.q : '' %>" class="toolbar-search-input">
-      <select name="documentType" class="filter-select">
-        <option value="">All Document Types</option>
-        <option value="Facility Accreditation Certificate" <%= query && query.documentType === 'Facility Accreditation Certificate' ? 'selected' : '' %>>Facility Accreditation Certificate</option>
-        <option value="Procurement Policy" <%= query && query.documentType === 'Procurement Policy' ? 'selected' : '' %>>Procurement Policy</option>
-        <option value="Floor Plan" <%= query && query.documentType === 'Floor Plan' ? 'selected' : '' %>>Floor Plan</option>
-        <option value="Inventory Report" <%= query && query.documentType === 'Inventory Report' ? 'selected' : '' %>>Inventory Report</option>
-        <option value="Compliance Certificate" <%= query && query.documentType === 'Compliance Certificate' ? 'selected' : '' %>>Compliance Certificate</option>
-        <option value="Other" <%= query && query.documentType === 'Other' ? 'selected' : '' %>>Other</option>
-      </select>
-      <div class="tags-filter-wrap">
-        <button type="button" class="tags-filter-toggle" id="tagsFilterToggle" aria-expanded="false" aria-haspopup="true">Filter by tags</button>
-        <div class="tags-filter-dropdown" id="tagsFilterDropdown" hidden>
-          <% var selectedTags = (typeof query !== 'undefined' && query && Array.isArray(query.tags)) ? query.tags.map(function(t){return (t||'').toString().toLowerCase();}) : (typeof query !== 'undefined' && query && query.tags ? [(query.tags||'').toString().toLowerCase()] : []); %>
-          <% (typeof availableTags !== 'undefined' ? availableTags : []).forEach(function(tag) { %>
-            <label class="tags-filter-check"><input type="checkbox" name="tags" value="<%= tag %>" <%= selectedTags.indexOf(tag.toLowerCase()) >= 0 ? 'checked' : '' %>><span><%= tag %></span></label>
-          <% }); %>
+  <main class="container main-content documents-page documents-page--list">
+    <% if (typeof isSystemAdmin === 'undefined' || !isSystemAdmin) { %>
+      <a href="/dashboard" class="back-link">← Back to Dashboard</a>
+    <% } %>
+    <header class="documents-page-header">
+      <h1 class="documents-page-title"><%= typeof docPageTitle !== 'undefined' ? docPageTitle : 'My Documents' %></h1>
+    <% if (typeof isSystemAdmin !== 'undefined' && isSystemAdmin) { %>
+      <p class="page-lede muted">All uploads across clients. Filter by <strong>company</strong> to review documents for one organization; the owner column shows who uploaded each file.</p>
+    <% } %>
+      <p class="page-count documents-page-count"><%= typeof documents !== 'undefined' ? documents.length : 0 %> document<%= (typeof documents !== 'undefined' && documents.length !== 1) ? 's' : '' %></p>
+    </header>
+    <form method="get" action="/documents" class="toolbar documents-toolbar">
+      <div class="documents-toolbar-filters">
+        <% if (typeof isSystemAdmin !== 'undefined' && isSystemAdmin && typeof companiesForFilter !== 'undefined' && companiesForFilter.length) { %>
+        <div class="documents-filter-field">
+          <label class="documents-filter-label" for="docCompanyFilter">Company</label>
+          <select name="companyId" id="docCompanyFilter" class="filter-select documents-filter-control" aria-label="Filter by company">
+            <option value="">All companies</option>
+            <% companiesForFilter.forEach(function(co) { %>
+              <option value="<%= co.id %>" <%= typeof query !== 'undefined' && query && String(query.companyId) === String(co.id) ? 'selected' : '' %>><%= co.name %></option>
+            <% }); %>
+          </select>
+        </div>
+        <% } %>
+        <% if (typeof isSystemAdmin !== 'undefined' && isSystemAdmin && typeof hasApprovalStatus !== 'undefined' && hasApprovalStatus) { %>
+        <div class="documents-filter-field">
+          <label class="documents-filter-label" for="docApprovalFilter">Approval</label>
+          <select name="approvalStatus" id="docApprovalFilter" class="filter-select documents-filter-control" aria-label="Filter by approval status">
+            <option value="">All</option>
+            <option value="PENDING" <%= typeof query !== 'undefined' && query && query.approvalStatus === 'PENDING' ? 'selected' : '' %>>Waiting for approval</option>
+            <option value="APPROVED" <%= typeof query !== 'undefined' && query && query.approvalStatus === 'APPROVED' ? 'selected' : '' %>>Approved</option>
+            <option value="REJECTED" <%= typeof query !== 'undefined' && query && query.approvalStatus === 'REJECTED' ? 'selected' : '' %>>Rejected</option>
+          </select>
+        </div>
+        <% } %>
+        <div class="documents-filter-field">
+          <label class="documents-filter-label" for="docDocumentType">Document type</label>
+          <select name="documentType" id="docDocumentType" class="filter-select documents-filter-control">
+            <option value="">All types</option>
+            <option value="Facility Accreditation Certificate" <%= query && query.documentType === 'Facility Accreditation Certificate' ? 'selected' : '' %>>Facility Accreditation Certificate</option>
+            <option value="Procurement Policy" <%= query && query.documentType === 'Procurement Policy' ? 'selected' : '' %>>Procurement Policy</option>
+            <option value="Floor Plan" <%= query && query.documentType === 'Floor Plan' ? 'selected' : '' %>>Floor Plan</option>
+            <option value="Inventory Report" <%= query && query.documentType === 'Inventory Report' ? 'selected' : '' %>>Inventory Report</option>
+            <option value="Compliance Certificate" <%= query && query.documentType === 'Compliance Certificate' ? 'selected' : '' %>>Compliance Certificate</option>
+            <option value="Other" <%= query && query.documentType === 'Other' ? 'selected' : '' %>>Other</option>
+          </select>
         </div>
       </div>
-      <button type="submit" class="toolbar-search-btn">Search</button>
-      <% var hasFilters = (typeof query !== 'undefined' && query && ((query.q && query.q !== '') || (query.documentType && query.documentType !== '') || (query.tags && (Array.isArray(query.tags) ? query.tags.length : 1)))); %>
-      <% if (hasFilters) { %><a href="/documents" class="btn btn-clear-filters">Clear filters</a><% } %>
+      <div class="documents-toolbar-search-row">
+        <div class="documents-filter-field documents-filter-field--search">
+          <label class="documents-filter-label" for="docSearchQ">Search</label>
+          <input type="search" name="q" id="docSearchQ" placeholder="Search by title or filename…" value="<%= typeof query !== 'undefined' && query.q ? query.q : '' %>" class="toolbar-search-input documents-filter-control" autocomplete="off">
+        </div>
+        <div class="documents-filter-field documents-filter-field--tags">
+          <label class="documents-filter-label" for="tagsFilterToggle">Tags</label>
+          <div class="tags-filter-wrap">
+            <button type="button" class="tags-filter-toggle documents-filter-control" id="tagsFilterToggle" aria-expanded="false" aria-haspopup="true">Choose tags…</button>
+            <div class="tags-filter-dropdown" id="tagsFilterDropdown" hidden>
+              <% var selectedTags = (typeof query !== 'undefined' && query && Array.isArray(query.tags)) ? query.tags.map(function(t){return (t||'').toString().toLowerCase();}) : (typeof query !== 'undefined' && query && query.tags ? [(query.tags||'').toString().toLowerCase()] : []); %>
+              <% (typeof availableTags !== 'undefined' ? availableTags : []).forEach(function(tag) { %>
+                <label class="tags-filter-check"><input type="checkbox" name="tags" value="<%= tag %>" <%= selectedTags.indexOf(tag.toLowerCase()) >= 0 ? 'checked' : '' %>><span><%= tag %></span></label>
+              <% }); %>
+            </div>
+          </div>
+        </div>
+        <div class="documents-filter-field documents-filter-field--actions">
+          <span class="documents-filter-label documents-filter-label--spacer" aria-hidden="true">&nbsp;</span>
+          <div class="documents-toolbar-actions">
+            <button type="submit" class="toolbar-search-btn">Apply filters</button>
+            <% var hasFilters = (typeof query !== 'undefined' && query && ((query.q && query.q !== '') || (query.companyId && query.companyId !== '') || (query.approvalStatus && query.approvalStatus !== '') || (query.documentType && query.documentType !== '') || (query.tags && (Array.isArray(query.tags) ? query.tags.length : 1)))); %>
+            <% if (hasFilters) { %><a href="/documents" class="btn btn-clear-filters">Clear all</a><% } %>
+          </div>
+        </div>
+      </div>
     </form>
     <% function sortUrl(q, s) { var p = {}; for (var k in (q||{})) { if (k === 'sort') continue; p[k] = q[k]; } p.sort = s; var parts = []; for (var k in p) { var v = p[k]; if (Array.isArray(v)) { v.forEach(function(t){ parts.push('tags='+encodeURIComponent(t)); }); } else if (v != null && v !== '') { parts.push(encodeURIComponent(k)+'='+encodeURIComponent(v)); } } return '/documents?' + parts.join('&'); } %>
     <% var currentSort = (typeof query !== 'undefined' && query && query.sort) ? query.sort : 'date'; %>
@@ -49,7 +96,9 @@
               <th class="col-tags">Tags</th>
               <th class="col-date col-sortable"><a href="<%= sortUrl(query, 'date') %>" class="th-sort-link<%= currentSort === 'date' ? ' th-sort-active' : '' %>">Date Modified<%= currentSort === 'date' ? ' ↓' : '' %></a></th>
               <th class="col-size col-sortable"><a href="<%= sortUrl(query, 'size') %>" class="th-sort-link<%= currentSort === 'size' ? ' th-sort-active' : '' %>">Size<%= currentSort === 'size' ? ' ↓' : '' %></a></th>
-              <% if (isAdmin) { %><th class="col-owner">Owner</th><% } %>
+              <% if (typeof isSystemAdmin !== 'undefined' && isSystemAdmin) { %><th class="col-company">Company</th><% } %>
+              <% if (typeof isSystemAdmin !== 'undefined' && isSystemAdmin && typeof hasApprovalStatus !== 'undefined' && hasApprovalStatus) { %><th class="col-approval">Approval</th><% } %>
+              <% if (isAdmin) { %><th class="col-owner">Uploaded by</th><% } %>
               <th class="col-actions">Actions</th>
             </tr>
           </thead>
@@ -62,7 +111,11 @@
                 <td class="col-tags" title="<%= tagList.replace(/"/g, '&quot;') %>"><%= tagList || '—' %></td>
                 <td class="col-date" title="<%= modDate.toLocaleString() %>"><%= modDate.toLocaleDateString() %></td>
                 <td class="col-size"><%= (d.file_size / 1024).toFixed(1) %> KB</td>
-                <% if (isAdmin) { %><td class="col-owner" title="<%= (d.owner_name || '') + ' (' + (d.owner_email || '') + ')' %>"><%= d.owner_name %> (<%= d.owner_email %>)</td><% } %>
+                <% if (typeof isSystemAdmin !== 'undefined' && isSystemAdmin) { %><td class="col-company" title="<%= (d.company_name || '').replace(/"/g, '&quot;') %>"><%= d.company_name || '—' %></td><% } %>
+                <% if (typeof isSystemAdmin !== 'undefined' && isSystemAdmin && typeof hasApprovalStatus !== 'undefined' && hasApprovalStatus) { %>
+                  <td class="col-approval"><% var st = (d.approval_status || 'PENDING').toString(); if (st === 'APPROVED') { %><span class="approval-tag approval-tag-approved">Approved</span><% } else if (st === 'REJECTED') { %><span class="approval-tag approval-tag-rejected">Rejected</span><% } else { %><span class="approval-tag approval-tag-pending">Waiting</span><% } %></td>
+                <% } %>
+                <% if (isAdmin) { %><td class="col-owner" title="<%= (d.owner_name || '') + ' (' + (d.owner_email || '') + ')' %>"><%= d.owner_name %> <span class="owner-email">(<%= d.owner_email %>)</span></td><% } %>
                 <td class="col-actions">
                   <a href="/documents/<%= d.id %>" class="doc-action-btn" title="View" aria-label="View"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></a>
                   <a href="/documents/<%= d.id %>/download" class="doc-action-btn" title="Download" aria-label="Download"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></a>

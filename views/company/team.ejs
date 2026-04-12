@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Team — Med Supply Innovation</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <%- include('../partials/header') %>
+  <main class="container main-content">
+    <a href="/dashboard" class="back-link">← Back to Dashboard</a>
+    <h1>Team — <%= companyName %></h1>
+    <p class="muted">Create staff accounts with a temporary password. They will set a new password, complete their profile, and enable two-factor authentication on first sign-in.</p>
+    <% if (typeof message !== 'undefined' && message) { %>
+      <div class="alert info"><%= message %></div>
+    <% } %>
+
+    <section class="settings-card" style="max-width: 520px; margin-bottom: 1.5rem;">
+      <h2 class="help-card-title" style="margin-top: 0;">Add staff member</h2>
+      <form method="post" action="/company/team" class="settings-form">
+        <label for="fullName">Full name</label>
+        <input type="text" id="fullName" name="fullName" required class="input-text" autocomplete="name">
+        <label for="email">Work email</label>
+        <input type="email" id="email" name="email" required class="input-text" autocomplete="off">
+        <label for="tempPassword">Temporary password</label>
+        <input type="text" id="tempPassword" name="tempPassword" required minlength="6" class="input-text" autocomplete="new-password" placeholder="Share this securely with the new user">
+        <button type="submit" class="btn btn-primary">Create account</button>
+      </form>
+    </section>
+
+    <h2>Members</h2>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Email</th>
+          <th>Role</th>
+          <th>Status</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% members.forEach(function(u) { %>
+          <tr>
+            <td><%= u.full_name %></td>
+            <td><%= u.email %></td>
+            <td><%= u.role === 'CLIENT_ADMIN' ? 'Client admin' : 'Staff' %></td>
+            <td><%= u.is_active ? 'Active' : 'Deactivated' %><%= u.password_must_change ? ' · Pending setup' : '' %></td>
+            <td>
+              <% if (u.role === 'CLIENT') { %>
+                <% if (u.is_active && u.id !== user.userId) { %>
+                  <form action="/company/team/<%= u.id %>/deactivate" method="post" style="display:inline;">
+                    <button type="submit" class="btn-link danger">Deactivate</button>
+                  </form>
+                <% } %>
+                <% if (!u.is_active) { %>
+                  <form action="/company/team/<%= u.id %>/reactivate" method="post" style="display:inline;">
+                    <button type="submit" class="btn-link">Reactivate</button>
+                  </form>
+                <% } %>
+                <a href="/company/team/<%= u.id %>/reset-password">Set temp password</a>
+              <% } else { %>
+                <span class="muted"><%= u.id === user.userId ? '(you)' : '' %></span>
+              <% } %>
+            </td>
+          </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  </main>
+  <%- include('../partials/footer') %>
+</body>
+</html>

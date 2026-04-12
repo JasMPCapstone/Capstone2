@@ -1,0 +1,16 @@
+-- Multi-tenant roles and companies (also applied automatically via lib/migrate-roles-companies.js on startup).
+
+CREATE TABLE IF NOT EXISTS companies (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  name VARCHAR(255) NOT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+ALTER TABLE users MODIFY COLUMN role VARCHAR(32) NOT NULL DEFAULT 'CLIENT';
+UPDATE users SET role = 'SYSTEM_ADMIN' WHERE role = 'ADMIN';
+
+ALTER TABLE users ADD COLUMN company_id INT UNSIGNED NULL;
+ALTER TABLE users ADD COLUMN password_must_change TINYINT(1) NOT NULL DEFAULT 0;
+ALTER TABLE users ADD COLUMN profile_completed TINYINT(1) NOT NULL DEFAULT 0;

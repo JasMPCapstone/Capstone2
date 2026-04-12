@@ -1,5 +1,20 @@
+<% if (typeof isSystemAdmin !== 'undefined' && isSystemAdmin) { %>
+    </div>
+  </div>
+</div>
+<footer class="admin-footer-minimal">
+  <p><a href="/privacy">Privacy</a><span class="admin-footer-sep" aria-hidden="true">·</span><a href="mailto:support@medsupply.com">Contact</a></p>
+  <p class="admin-footer-copy">&copy; 2025 Med Supply Innovation</p>
+</footer>
+<% } else { %>
 <footer class="site-footer">
   <div class="container site-footer-inner">
+    <p class="site-footer-links">
+      <a href="mailto:support@medsupply.com">Contact support</a>
+      <span aria-hidden="true">|</span>
+      <a href="/privacy">Privacy policy</a>
+    </p>
     <p>&copy; 2025 Med Supply Innovation. All rights reserved.</p>
   </div>
 </footer>
+<% } %>

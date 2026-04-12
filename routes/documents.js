@@ -4,16 +4,29 @@ const fs = require('fs');
 const { pool } = require('../config/database');
 const { log } = require('../lib/audit');
 const { requireAuth } = require('../middleware/auth');
+const { enforceOnboarding } = require('../middleware/onboarding');
+const { isSystemAdmin, isClientAdmin } = require('../lib/roles');
 const { upload } = require('../middleware/upload');
 
 const router = express.Router();
 router.use(requireAuth);
+router.use(enforceOnboarding);
 
 const uploadDir = path.join(process.cwd(), 'uploads');
 
-function canAccessDocument(userId, role, doc) {
-  if (role === 'ADMIN') return true;
-  return doc && Number(doc.user_id) === Number(userId);
+function canAccessDocument(userId, role, companyId, doc) {
+  if (!doc) return false;
+  if (isSystemAdmin(role)) return true;
+  if (Number(doc.user_id) === Number(userId)) return true;
+  if (
+    isClientAdmin(role) &&
+    companyId != null &&
+    doc.owner_company_id != null &&
+    Number(doc.owner_company_id) === Number(companyId)
+  ) {
+    return true;
+  }
+  return false;
 }
 
 // Document types and tags (same as upload form)
@@ -51,8 +64,24 @@ router.get('/', async (req, res) => {
     const dateTo = (req.query.dateTo || '').trim();
     const sort = (req.query.sort || 'date').toLowerCase();
 
-    const baseWhere = role !== 'ADMIN' ? ' AND d.user_id = ?' : '';
-    const baseParams = role !== 'ADMIN' ? [userId] : [];
+    let baseWhere = '';
+    const baseParams = [];
+    if (isSystemAdmin(role)) {
+      const rawCid = (req.query.companyId || '').toString().trim();
+      if (rawCid) {
+        const cid = parseInt(rawCid, 10);
+        if (!Number.isNaN(cid) && cid > 0) {
+          baseWhere += ' AND u.company_id = ?';
+          baseParams.push(cid);
+        }
+      }
+    } else if (isClientAdmin(role) && req.session.companyId) {
+      baseWhere = ' AND u.company_id = ?';
+      baseParams.push(req.session.companyId);
+    } else {
+      baseWhere = ' AND d.user_id = ?';
+      baseParams.push(userId);
+    }
 
     // Use predefined tags (same as upload form)
     const availableTags = [...TAGS];
@@ -65,12 +94,22 @@ router.get('/', async (req, res) => {
       if (colErr.code === 'ER_BAD_FIELD_ERROR') hasDocumentType = false;
     }
 
+    let hasApprovalStatus = true;
+    try {
+      await pool.query('SELECT approval_status FROM documents LIMIT 1');
+    } catch (colErr) {
+      if (colErr.code === 'ER_BAD_FIELD_ERROR') hasApprovalStatus = false;
+    }
+
     const docTypeSelect = hasDocumentType ? 'd.document_type, ' : '';
+    const approvalSelect = hasApprovalStatus ? 'd.approval_status, ' : '';
     let sql = `
-      SELECT d.id, d.user_id, d.filename, d.original_filename, d.file_type, d.file_extension, d.file_size, d.title, d.description, ${docTypeSelect}d.tags, d.created_at, d.updated_at,
-             u.full_name AS owner_name, u.email AS owner_email
+      SELECT d.id, d.user_id, d.filename, d.original_filename, d.file_type, d.file_extension, d.file_size, d.title, d.description, ${docTypeSelect}${approvalSelect}d.tags, d.created_at, d.updated_at,
+             u.full_name AS owner_name, u.email AS owner_email, u.company_id AS owner_company_id,
+             comp.name AS company_name
       FROM documents d
       JOIN users u ON u.id = d.user_id
+      LEFT JOIN companies comp ON comp.id = u.company_id
       WHERE d.deleted_at IS NULL
     `;
     sql += baseWhere;
@@ -105,16 +144,42 @@ router.get('/', async (req, res) => {
       params.push(dateTo + ' 23:59:59');
     }
 
+    const approvalStatusParam = (req.query.approvalStatus || '').toString().trim().toUpperCase();
+    if (
+      isSystemAdmin(role) &&
+      hasApprovalStatus &&
+      ['PENDING', 'APPROVED', 'REJECTED'].includes(approvalStatusParam)
+    ) {
+      sql += ' AND d.approval_status = ?';
+      params.push(approvalStatusParam);
+    }
+
     const orderBy = sort === 'name' ? 'd.title ASC, d.original_filename ASC' : sort === 'size' ? 'd.file_size DESC' : 'd.updated_at DESC';
     sql += ` ORDER BY ${orderBy}`;
     const [rows] = await pool.query(sql, params);
-    res.render('documents/list', {
+
+    let companiesForFilter = [];
+    if (isSystemAdmin(role)) {
+      const [companies] = await pool.query('SELECT id, name FROM companies ORDER BY name ASC');
+      companiesForFilter = companies;
+    }
+
+    let docPageTitle = 'My Documents';
+    if (isSystemAdmin(role)) docPageTitle = 'All documents';
+    else if (isClientAdmin(role)) docPageTitle = 'Company documents';
+
+    const listLocals = {
       documents: rows,
       query: req.query,
       availableTags,
-      isAdmin: role === 'ADMIN',
+      companiesForFilter,
+      hasApprovalStatus,
+      isAdmin: isSystemAdmin(role) || isClientAdmin(role),
+      docPageTitle,
       navActive: 'documents',
-    });
+    };
+    if (isSystemAdmin(role)) listLocals.adminPageTitle = 'Documents';
+    res.render('documents/list', listLocals);
   } catch (err) {
     console.error(err);
     res.status(500).render('error', { message: 'Failed to load documents.' });
@@ -123,13 +188,17 @@ router.get('/', async (req, res) => {
 
 // Upload form
 router.get('/upload', (req, res) => {
-  res.render('documents/upload', { navActive: 'upload' });
+  const locals = { navActive: 'upload' };
+  if (isSystemAdmin(req.session.role)) locals.adminPageTitle = 'Upload document';
+  res.render('documents/upload', locals);
 });
 
 // Upload handler
 router.post('/upload', upload.single('document'), async (req, res) => {
   if (!req.file) {
-    return res.status(400).render('documents/upload', { message: 'Please select a file (PDF, DOCX, or XLSX).', navActive: 'upload' });
+    const upErr = { message: 'Please select a file (PDF, DOCX, JPG, XLSX, or CSV).', navActive: 'upload' };
+    if (isSystemAdmin(req.session.role)) upErr.adminPageTitle = 'Upload document';
+    return res.status(400).render('documents/upload', upErr);
   }
   const title = (req.body.title || req.file.originalname || '').toString().trim().slice(0, 255);
   const description = (req.body.description || '').toString().trim().slice(0, 2000);
@@ -141,8 +210,8 @@ router.post('/upload', upload.single('document'), async (req, res) => {
     let result;
     try {
       [result] = await pool.query(
-        `INSERT INTO documents (user_id, filename, original_filename, file_type, file_extension, file_size, title, description, document_type, tags)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO documents (user_id, filename, original_filename, file_type, file_extension, file_size, title, description, document_type, tags, approval_status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING')`,
         [
           req.session.userId,
           req.file.filename,
@@ -158,22 +227,59 @@ router.post('/upload', upload.single('document'), async (req, res) => {
       );
     } catch (colErr) {
       if (colErr.code === 'ER_BAD_FIELD_ERROR' && colErr.message && colErr.message.includes('document_type')) {
+        try {
+          [result] = await pool.query(
+            `INSERT INTO documents (user_id, filename, original_filename, file_type, file_extension, file_size, title, description, tags, approval_status)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING')`,
+            [
+              req.session.userId,
+              req.file.filename,
+              req.file.originalname || req.file.filename,
+              fileType,
+              path.extname(req.file.originalname || '').replace(/^\./, '').toLowerCase() || 'bin',
+              req.file.size,
+              title || req.file.originalname,
+              description || null,
+              tags || null,
+            ]
+          );
+        } catch (colErr2) {
+          if (colErr2.code === 'ER_BAD_FIELD_ERROR' && colErr2.message && colErr2.message.includes('approval_status')) {
+            [result] = await pool.query(
+              `INSERT INTO documents (user_id, filename, original_filename, file_type, file_extension, file_size, title, description, tags)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              [
+                req.session.userId,
+                req.file.filename,
+                req.file.originalname || req.file.filename,
+                fileType,
+                path.extname(req.file.originalname || '').replace(/^\./, '').toLowerCase() || 'bin',
+                req.file.size,
+                title || req.file.originalname,
+                description || null,
+                tags || null,
+              ]
+            );
+          } else throw colErr2;
+        }
+      } else if (colErr.code === 'ER_BAD_FIELD_ERROR' && colErr.message && colErr.message.includes('approval_status')) {
         [result] = await pool.query(
-          `INSERT INTO documents (user_id, filename, original_filename, file_type, file_extension, file_size, title, description, tags)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          req.session.userId,
-          req.file.filename,
-          req.file.originalname || req.file.filename,
-          fileType,
-          path.extname(req.file.originalname || '').replace(/^\./, '').toLowerCase() || 'bin',
-          req.file.size,
-          title || req.file.originalname,
-          description || null,
-          tags || null,
-        ]
-      );
-    } else throw colErr;
+          `INSERT INTO documents (user_id, filename, original_filename, file_type, file_extension, file_size, title, description, document_type, tags)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            req.session.userId,
+            req.file.filename,
+            req.file.originalname || req.file.filename,
+            fileType,
+            path.extname(req.file.originalname || '').replace(/^\./, '').toLowerCase() || 'bin',
+            req.file.size,
+            title || req.file.originalname,
+            description || null,
+            documentType,
+            tags || null,
+          ]
+        );
+      } else throw colErr;
     }
     await log({
       userId: req.session.userId,
@@ -185,7 +291,9 @@ router.post('/upload', upload.single('document'), async (req, res) => {
   } catch (err) {
     fs.unlink(req.file.path, () => {});
     console.error(err);
-    res.status(500).render('documents/upload', { message: 'Upload failed. Please try again.', navActive: 'upload' });
+    const upFail = { message: 'Upload failed. Please try again.', navActive: 'upload' };
+    if (isSystemAdmin(req.session.role)) upFail.adminPageTitle = 'Upload document';
+    res.status(500).render('documents/upload', upFail);
   }
 });
 
@@ -194,10 +302,14 @@ router.get('/:id/view', async (req, res) => {
   const id = parseInt(req.params.id, 10);
   if (!id) return res.status(400).redirect('/documents');
   try {
-    const [rows] = await pool.query('SELECT * FROM documents WHERE id = ? AND deleted_at IS NULL', [id]);
+    const [rows] = await pool.query(
+      `SELECT d.*, u.company_id AS owner_company_id FROM documents d
+       JOIN users u ON u.id = d.user_id WHERE d.id = ? AND d.deleted_at IS NULL`,
+      [id]
+    );
     const doc = rows[0];
     if (!doc) return res.status(404).send('Not found');
-    if (!canAccessDocument(req.session.userId, req.session.role, doc)) {
+    if (!canAccessDocument(req.session.userId, req.session.role, req.session.companyId, doc)) {
       return res.status(403).send('Access denied');
     }
     const filePath = path.join(uploadDir, doc.filename);
@@ -217,15 +329,24 @@ router.get('/:id', async (req, res) => {
   if (!id) return res.status(400).redirect('/documents');
   try {
     const [rows] = await pool.query(
-      `SELECT d.*, u.full_name AS owner_name, u.email AS owner_email FROM documents d JOIN users u ON u.id = d.user_id WHERE d.id = ? AND d.deleted_at IS NULL`,
+      `SELECT d.*, u.full_name AS owner_name, u.email AS owner_email, u.company_id AS owner_company_id
+       FROM documents d JOIN users u ON u.id = d.user_id WHERE d.id = ? AND d.deleted_at IS NULL`,
       [id]
     );
     const doc = rows[0];
     if (!doc) return res.status(404).render('error', { message: 'Document not found.' });
-    if (!canAccessDocument(req.session.userId, req.session.role, doc)) {
+    if (!canAccessDocument(req.session.userId, req.session.role, req.session.companyId, doc)) {
       return res.status(403).render('error', { message: 'You do not have access to this document.' });
     }
-    res.render('documents/detail', { doc, isAdmin: req.session.role === 'ADMIN' });
+    const detailLocals = {
+      doc,
+      isAdmin: isSystemAdmin(req.session.role) || isClientAdmin(req.session.role),
+      navActive: 'documents',
+    };
+    if (isSystemAdmin(req.session.role)) {
+      detailLocals.adminPageTitle = (doc.title || doc.original_filename || 'Document').toString().slice(0, 72);
+    }
+    res.render('documents/detail', detailLocals);
   } catch (err) {
     console.error(err);
     res.status(500).render('error', { message: 'Failed to load document.' });
@@ -237,10 +358,14 @@ router.get('/:id/download', async (req, res) => {
   const id = parseInt(req.params.id, 10);
   if (!id) return res.status(400).redirect('/documents');
   try {
-    const [rows] = await pool.query('SELECT * FROM documents WHERE id = ? AND deleted_at IS NULL', [id]);
+    const [rows] = await pool.query(
+      `SELECT d.*, u.company_id AS owner_company_id FROM documents d
+       JOIN users u ON u.id = d.user_id WHERE d.id = ? AND d.deleted_at IS NULL`,
+      [id]
+    );
     const doc = rows[0];
     if (!doc) return res.status(404).render('error', { message: 'Document not found.' });
-    if (!canAccessDocument(req.session.userId, req.session.role, doc)) {
+    if (!canAccessDocument(req.session.userId, req.session.role, req.session.companyId, doc)) {
       return res.status(403).render('error', { message: 'Access denied.' });
     }
     const filePath = path.join(uploadDir, doc.filename);
@@ -265,13 +390,21 @@ router.get('/:id/edit', async (req, res) => {
   const id = parseInt(req.params.id, 10);
   if (!id) return res.status(400).redirect('/documents');
   try {
-    const [rows] = await pool.query('SELECT * FROM documents WHERE id = ? AND deleted_at IS NULL', [id]);
+    const [rows] = await pool.query(
+      `SELECT d.*, u.company_id AS owner_company_id FROM documents d
+       JOIN users u ON u.id = d.user_id WHERE d.id = ? AND d.deleted_at IS NULL`,
+      [id]
+    );
     const doc = rows[0];
     if (!doc) return res.status(404).render('error', { message: 'Document not found.' });
-    if (!canAccessDocument(req.session.userId, req.session.role, doc)) {
+    if (!canAccessDocument(req.session.userId, req.session.role, req.session.companyId, doc)) {
       return res.status(403).render('error', { message: 'Access denied.' });
     }
-    res.render('documents/edit', { doc, navActive: 'documents' });
+    const editLocals = { doc, navActive: 'documents' };
+    if (isSystemAdmin(req.session.role)) {
+      editLocals.adminPageTitle = `Edit · ${(doc.title || doc.original_filename || '').toString().slice(0, 48)}`;
+    }
+    res.render('documents/edit', editLocals);
   } catch (err) {
     console.error(err);
     res.status(500).render('error', { message: 'Failed to load document.' });
@@ -288,10 +421,14 @@ router.post('/:id/edit', async (req, res) => {
   const documentType = (req.body.documentType || '').toString().trim().slice(0, 100) || null;
 
   try {
-    const [rows] = await pool.query('SELECT * FROM documents WHERE id = ? AND deleted_at IS NULL', [id]);
+    const [rows] = await pool.query(
+      `SELECT d.*, u.company_id AS owner_company_id FROM documents d
+       JOIN users u ON u.id = d.user_id WHERE d.id = ? AND d.deleted_at IS NULL`,
+      [id]
+    );
     const doc = rows[0];
     if (!doc) return res.status(404).render('error', { message: 'Document not found.' });
-    if (!canAccessDocument(req.session.userId, req.session.role, doc)) {
+    if (!canAccessDocument(req.session.userId, req.session.role, req.session.companyId, doc)) {
       return res.status(403).render('error', { message: 'Access denied.' });
     }
     try {
@@ -325,10 +462,14 @@ router.post('/:id/delete', async (req, res) => {
   const id = parseInt(req.params.id, 10);
   if (!id) return res.status(400).redirect('/documents');
   try {
-    const [rows] = await pool.query('SELECT * FROM documents WHERE id = ? AND deleted_at IS NULL', [id]);
+    const [rows] = await pool.query(
+      `SELECT d.*, u.company_id AS owner_company_id FROM documents d
+       JOIN users u ON u.id = d.user_id WHERE d.id = ? AND d.deleted_at IS NULL`,
+      [id]
+    );
     const doc = rows[0];
     if (!doc) return res.status(404).render('error', { message: 'Document not found.' });
-    if (!canAccessDocument(req.session.userId, req.session.role, doc)) {
+    if (!canAccessDocument(req.session.userId, req.session.role, req.session.companyId, doc)) {
       return res.status(403).render('error', { message: 'Access denied.' });
     }
     const filePath = path.join(uploadDir, doc.filename);

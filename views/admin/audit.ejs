@@ -3,45 +3,57 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Audit log — Admin — MedSupply Portal</title>
+  <title>Audit log — System administration — MedSupply Portal</title>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
   <%- include('../partials/header') %>
-  <main class="container main-content">
-    <h1>Audit log</h1>
-    <form method="get" action="/admin/audit" class="filters">
-      <input type="text" name="action" placeholder="Action" value="<%= query && query.action ? query.action : '' %>">
-      <input type="number" name="userId" placeholder="User ID" value="<%= query && query.userId ? query.userId : '' %>">
-      <input type="date" name="dateFrom" value="<%= query && query.dateFrom ? query.dateFrom : '' %>">
-      <input type="date" name="dateTo" value="<%= query && query.dateTo ? query.dateTo : '' %>">
-      <button type="submit" class="btn">Filter</button>
-    </form>
-    <table class="data-table">
-      <thead>
-        <tr>
-          <th>Time</th>
-          <th>User</th>
-          <th>Action</th>
-          <th>Details</th>
-          <th>IP</th>
-        </tr>
-      </thead>
-      <tbody>
-        <% logs.forEach(function(l) { %>
+  <main class="container main-content admin-main">
+    <header class="admin-page-head">
+      <p class="admin-kicker"><a href="/admin" class="admin-crumb">System administration</a> / Audit log</p>
+      <p class="admin-page-subline">Security and compliance trail</p>
+      <p class="admin-page-lede">
+        Immutable trail of significant actions (logins, admin changes, uploads, and more). Filter by action, user, or date range for investigations and compliance.
+      </p>
+    </header>
+
+    <section class="settings-card admin-filter-card">
+      <h2 class="admin-card-title">Filters</h2>
+      <form method="get" action="/admin/audit" class="filters admin-audit-filters">
+        <input type="text" name="action" placeholder="Action code" value="<%= query && query.action ? query.action : '' %>" class="input-text">
+        <input type="number" name="userId" placeholder="User ID" value="<%= query && query.userId ? query.userId : '' %>" class="input-text" min="1">
+        <input type="date" name="dateFrom" value="<%= query && query.dateFrom ? query.dateFrom : '' %>" class="input-text" aria-label="From date">
+        <input type="date" name="dateTo" value="<%= query && query.dateTo ? query.dateTo : '' %>" class="input-text" aria-label="To date">
+        <button type="submit" class="btn btn-primary">Apply filters</button>
+      </form>
+    </section>
+
+    <div class="table-scroll">
+      <table class="data-table admin-data-table">
+        <thead>
           <tr>
-            <td><%= new Date(l.created_at).toLocaleString() %></td>
-            <td><%= l.email || ('ID ' + l.user_id) %></td>
-            <td><%= l.action %></td>
-            <td><%= l.details || '—' %></td>
-            <td><%= l.ip_address || '—' %></td>
+            <th>Time</th>
+            <th>User</th>
+            <th>Action</th>
+            <th>Details</th>
+            <th>IP</th>
           </tr>
-        <% }); %>
-      </tbody>
-    </table>
-    <p class="muted">Showing up to 500 most recent entries.</p>
-    <p><a href="/admin">Back to admin</a></p>
+        </thead>
+        <tbody>
+          <% logs.forEach(function(l) { %>
+            <tr>
+              <td><%= new Date(l.created_at).toLocaleString() %></td>
+              <td><%= l.email || ('ID ' + l.user_id) %></td>
+              <td><code class="audit-action-code"><%= l.action %></code></td>
+              <td><%= l.details || '—' %></td>
+              <td><%= l.ip_address || '—' %></td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+    <p class="muted admin-footnote">Showing up to 500 most recent matching entries.</p>
   </main>
   <%- include('../partials/footer') %>
 </body>
