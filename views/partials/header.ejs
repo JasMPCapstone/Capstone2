@@ -5,7 +5,7 @@
     if (adminNav === 'overview') _adminTitle = 'Dashboard';
     else if (adminNav === 'directory') _adminTitle = typeof adminPageTitle !== 'undefined' && adminPageTitle ? adminPageTitle : 'User management';
     else if (adminNav === 'users') _adminTitle = 'Users';
-    else if (adminNav === 'companies') _adminTitle = 'Companies';
+    else if (adminNav === 'companies') _adminTitle = 'Organizations';
     else if (adminNav === 'audit') _adminTitle = 'Audit log';
   }
   if (!_adminTitle && typeof navActive !== 'undefined') {

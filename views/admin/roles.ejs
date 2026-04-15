@@ -10,15 +10,6 @@
 <body>
   <%- include('../partials/header') %>
   <main class="container main-content admin-main">
-    <header class="admin-page-head admin-directory-intro">
-      <p class="admin-kicker"><a href="/admin" class="admin-crumb">System administration</a> / Roles</p>
-      <h1 class="admin-page-title">Roles in MedSupply</h1>
-      <p class="admin-page-lede">
-        Every account is assigned one role. Roles define what someone can see and do in the portal.
-        Client users are always tied to a <strong>company</strong>; system administrators operate across all tenants.
-      </p>
-    </header>
-
     <section class="admin-mgmt-panel" aria-labelledby="roles-overview-title">
       <h2 id="roles-overview-title" class="sr-only">Role definitions</h2>
       <%- include('../partials/admin-directory-tabs') %>
@@ -27,25 +18,25 @@
         <li class="admin-role-def-card">
           <h3 class="admin-role-def-title"><span class="role-pill role-pill-system">System administrator</span></h3>
           <p class="admin-role-def-body">
-            Full access to this console: companies, all users, documents, approvals, and audit. Use for your internal operations team only.
+            Full access to this console: organizations, all users, documents, approvals, and audit. Use for your internal operations team only.
           </p>
         </li>
         <li class="admin-role-def-card">
-          <h3 class="admin-role-def-title"><span class="role-pill role-pill-client-admin">Client administrator</span></h3>
+          <h3 class="admin-role-def-title"><span class="role-pill role-pill-client-admin">Manager</span></h3>
           <p class="admin-role-def-body">
-            Manages one client organization: team members, uploads, and day-to-day document workflow within that company. Created by a system admin after onboarding.
+            Manages one organization: team members, uploads, and day-to-day document workflow within that organization. Created by a system admin after onboarding.
           </p>
         </li>
         <li class="admin-role-def-card">
-          <h3 class="admin-role-def-title"><span class="role-pill role-pill-staff">Client user</span></h3>
+          <h3 class="admin-role-def-title"><span class="role-pill role-pill-staff">Staff</span></h3>
           <p class="admin-role-def-body">
-            Staff members belonging to a company. They can upload and view documents according to your process; they do not manage other users or company settings.
+            Staff members belonging to an organization. They can upload and view documents according to your process; they do not manage other users or organization settings.
           </p>
         </li>
       </ul>
 
       <p class="admin-mgmt-footnote muted">
-        To change who holds which role, use <a href="/admin/users">Users management</a> (activate or deactivate accounts) and <a href="/admin/companies">Company management</a> (add client administrators per organization).
+        To change who holds which role, use <a href="/admin/users">Users management</a> (activate or deactivate accounts) and <a href="/admin/companies">Organization management</a> (add managers per organization).
       </p>
     </section>
   </main>

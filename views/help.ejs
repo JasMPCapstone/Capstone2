@@ -9,11 +9,12 @@
 </head>
 <body>
   <%- include('partials/header') %>
-  <main class="container main-content">
+  <main class="container main-content<%= typeof isSystemAdmin !== 'undefined' && isSystemAdmin ? ' admin-main' : '' %>">
+    <% if (!(typeof isSystemAdmin !== 'undefined' && isSystemAdmin)) { %>
     <section class="help-hero">
       <h1 class="help-title">Help</h1>
-      <p class="help-subtitle">Find answers and guidance for using the Med Supply Innovation document portal.</p>
     </section>
+    <% } %>
 
     <section class="help-grid">
       <article class="help-card">
@@ -21,7 +22,7 @@
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
         </div>
         <h2 class="help-card-title">Getting Started</h2>
-        <p>Accounts are created by your organization (not self-registration). After your first sign-in you will set a permanent password, complete your profile, and turn on two-factor authentication. Then use the <strong>Dashboard</strong>, <strong>Upload Document</strong>, and <strong>My Documents</strong> (or <strong>Company documents</strong> if you are a client administrator).</p>
+        <p>Accounts are created by your organization (not self-registration). After your first sign-in you will set a permanent password, complete your profile, and turn on two-factor authentication. Then use the <strong>Dashboard</strong>, <strong>Upload Document</strong>, and <strong>My Documents</strong> (or <strong>Company documents</strong> if you are a manager).</p>
       </article>
 
       <article class="help-card">
@@ -45,7 +46,7 @@
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
         </div>
         <h2 class="help-card-title">Security &amp; 2FA</h2>
-        <p>Staff and client administrators must use two-factor authentication after completing their profile. Open <strong>Edit Profile</strong> (pencil on your dashboard card) and use the <strong>2FA</strong> button, or go to the two-factor settings page when the system prompts you.</p>
+        <p>Staff and managers must use two-factor authentication after completing their profile. Open <strong>Edit Profile</strong> (pencil on your dashboard card) and use the <strong>2FA</strong> button, or go to the two-factor settings page when the system prompts you.</p>
       </article>
     </section>
   </main>

@@ -5,6 +5,7 @@ const bcrypt = require('bcryptjs');
 const { pool } = require('../config/database');
 
 const uploadDir = path.join(process.cwd(), 'uploads');
+const { getStorage, isS3Storage } = require('../lib/storage');
 const { log } = require('../lib/audit');
 const { requireAuth, requireSystemAdmin } = require('../middleware/auth');
 const { normalizeApprovalStatus } = require('../lib/migrate-document-approval');
@@ -134,7 +135,7 @@ router.get('/users/new', async (req, res) => {
       message: req.query.message || '',
       adminNav: 'directory',
       adminDirectoryTab: 'users',
-      adminPageTitle: 'Add user',
+      adminPageTitle: 'Add manager',
     });
   } catch (err) {
     console.error(err);
@@ -171,10 +172,14 @@ router.post('/users', async (req, res) => {
   if (!emailTrim || !fullName || !tempPassword || tempPassword.length < 6) {
     return redirectForm('Fill all fields; password at least 6 characters');
   }
-  const role = roleRaw === 'CLIENT_ADMIN' ? 'CLIENT_ADMIN' : 'CLIENT';
+  let role = roleRaw === 'CLIENT_ADMIN' ? 'CLIENT_ADMIN' : 'CLIENT';
   if (role !== 'CLIENT_ADMIN' && role !== 'CLIENT') {
     return redirectForm('Invalid role');
   }
+  if (role === 'CLIENT') {
+    return redirectForm('Add staff from Organization management → open the organization → Add user.');
+  }
+  role = 'CLIENT_ADMIN';
   try {
     const [cc] = await pool.query('SELECT id, name FROM companies WHERE id = ?', [companyId]);
     if (!cc.length) return redirectForm('Company not found');
@@ -191,8 +196,7 @@ router.post('/users', async (req, res) => {
       details: `email=${emailTrim} company_id=${companyId} role=${role}`,
       req,
     });
-    const msg = role === 'CLIENT_ADMIN' ? 'Client administrator created' : 'User created';
-    return redirectList(msg, { companyId });
+    return redirectList('Manager created', { companyId });
   } catch (err) {
     if (err.code === 'ER_DUP_ENTRY') {
       return redirectForm('Email already in use');
@@ -341,13 +345,15 @@ router.post('/users/:id/delete', async (req, res) => {
     }
     const [docRows] = await pool.query('SELECT filename FROM documents WHERE user_id = ?', [id]);
     for (const d of docRows) {
-      const fp = path.join(uploadDir, d.filename);
-      if (fs.existsSync(fp)) {
-        try {
-          fs.unlinkSync(fp);
-        } catch (e) {
-          console.error(e);
+      try {
+        if (isS3Storage()) {
+          await getStorage().deleteObject(d.filename);
+        } else {
+          const fp = path.join(uploadDir, d.filename);
+          if (fs.existsSync(fp)) fs.unlinkSync(fp);
         }
+      } catch (e) {
+        console.error(e);
       }
     }
     await pool.query('DELETE FROM users WHERE id = ?', [id]);
@@ -486,7 +492,7 @@ router.get('/companies', async (req, res) => {
       message: req.query.message || '',
       adminNav: 'directory',
       adminDirectoryTab: 'companies',
-      adminPageTitle: 'Company management',
+      adminPageTitle: 'Organization management',
     });
   } catch (err) {
     console.error(err);
@@ -505,7 +511,7 @@ router.post('/companies', async (req, res) => {
 
   if (!name) return redirectForm('Company name is required');
   if (!fullName || !emailTrim || !tempPassword || tempPassword.length < 6) {
-    return redirectForm('Enter the client administrator’s full name, email, and a temporary password (at least 6 characters).');
+    return redirectForm('Enter the manager’s full name, email, and a temporary password (at least 6 characters).');
   }
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!emailRegex.test(emailTrim)) return redirectForm('Invalid email address');
@@ -537,7 +543,7 @@ router.post('/companies', async (req, res) => {
       req,
     });
     res.redirect(
-      `/admin/companies/${companyId}?message=${encodeURIComponent('Company and client administrator created.')}`
+      `/admin/companies/${companyId}?message=${encodeURIComponent('Organization and manager created.')}`
     );
   } catch (err) {
     if (conn) {
@@ -551,7 +557,7 @@ router.post('/companies', async (req, res) => {
       return redirectForm('That email is already in use');
     }
     console.error(err);
-    return redirectForm('Could not create company and administrator');
+    return redirectForm('Could not create organization and manager');
   } finally {
     if (conn) conn.release();
   }
@@ -562,8 +568,69 @@ router.get('/companies/new', (req, res) => {
     message: req.query.message || '',
     adminNav: 'directory',
     adminDirectoryTab: 'companies',
-    adminPageTitle: 'Add company',
+    adminPageTitle: 'Add organization',
   });
+});
+
+router.get('/companies/:id/users/new', async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (!id) return res.redirect('/admin/companies');
+  try {
+    const [rows] = await pool.query('SELECT id, name FROM companies WHERE id = ?', [id]);
+    if (!rows[0]) return res.status(404).render('error', { message: 'Company not found.' });
+    const company = rows[0];
+    res.render('admin/company-staff-form', {
+      company,
+      message: req.query.message || '',
+      adminNav: 'directory',
+      adminDirectoryTab: 'companies',
+      adminPageTitle: `Add staff · ${company.name}`,
+    });
+  } catch (err) {
+    console.error(err);
+    res.redirect('/admin/companies');
+  }
+});
+
+router.post('/companies/:id/users', async (req, res) => {
+  const companyId = parseInt(req.params.id, 10);
+  if (!companyId) return res.redirect('/admin/companies');
+  const emailTrim = (req.body.email || '').toString().trim().toLowerCase();
+  const fullName = (req.body.fullName || '').toString().trim();
+  const tempPassword = (req.body.tempPassword || '').toString();
+
+  const redirectForm = (msg) => {
+    const q = msg ? `?message=${encodeURIComponent(msg)}` : '';
+    return res.redirect(`/admin/companies/${companyId}/users/new${q}`);
+  };
+
+  if (!emailTrim || !fullName || !tempPassword || tempPassword.length < 6) {
+    return redirectForm('Fill all fields; password at least 6 characters');
+  }
+  try {
+    const [cc] = await pool.query('SELECT id, name FROM companies WHERE id = ?', [companyId]);
+    if (!cc.length) return res.redirect('/admin/companies?message=Company not found');
+    const orgName = cc[0].name;
+    const hash = await bcrypt.hash(tempPassword, 10);
+    await pool.query(
+      `INSERT INTO users (email, password_hash, full_name, role, company_id, password_must_change, profile_completed, company)
+       VALUES (?, ?, ?, 'CLIENT', ?, 1, 0, ?)`,
+      [emailTrim, hash, fullName, companyId, orgName]
+    );
+    await log({
+      userId: req.session.userId,
+      action: 'SYSTEM_CREATE_USER',
+      details: `email=${emailTrim} company_id=${companyId} role=CLIENT staff`,
+      req,
+    });
+    res.redirect(`/admin/companies/${companyId}?message=${encodeURIComponent('Staff user created.')}`);
+  } catch (err) {
+    if (err.code === 'ER_DUP_ENTRY') {
+      return redirectForm('Email already in use');
+    }
+    console.error(err);
+    return redirectForm('Could not create user');
+  }
 });
 
 router.get('/companies/:id', async (req, res) => {
@@ -627,9 +694,13 @@ router.post('/companies/:id/delete', async (req, res) => {
     );
 
     for (const row of docRows) {
-      const fp = path.join(uploadDir, row.filename);
       try {
-        if (fs.existsSync(fp)) fs.unlinkSync(fp);
+        if (isS3Storage()) {
+          await getStorage().deleteObject(row.filename);
+        } else {
+          const fp = path.join(uploadDir, row.filename);
+          if (fs.existsSync(fp)) fs.unlinkSync(fp);
+        }
       } catch (e) {
         console.warn('Company delete: could not remove file', row.filename, e.message);
       }
@@ -717,7 +788,7 @@ router.get('/companies/:id/admins/new', async (req, res) => {
       message: req.query.message || '',
       adminNav: 'directory',
       adminDirectoryTab: 'companies',
-      adminPageTitle: `Client admin · ${rows[0].name}`,
+      adminPageTitle: `Manager · ${rows[0].name}`,
     });
   } catch (err) {
     console.error(err);
@@ -750,7 +821,7 @@ router.post('/companies/:id/admins', async (req, res) => {
       details: `email=${emailTrim} company_id=${companyId}`,
       req,
     });
-    res.redirect('/admin/companies?message=Client administrator created');
+    res.redirect('/admin/companies?message=Manager created');
   } catch (err) {
     if (err.code === 'ER_DUP_ENTRY') {
       return res.redirect(`/admin/companies/${companyId}/admins/new?message=Email already in use`);

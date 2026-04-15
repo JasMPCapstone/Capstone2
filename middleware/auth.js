@@ -1,4 +1,3 @@
-const { log } = require('../lib/audit');
 const { isSystemAdmin, isClientAdmin } = require('../lib/roles');
 
 function requireAuth(req, res, next) {
@@ -34,7 +33,7 @@ function requireClientAdmin(req, res, next) {
     return res.redirect('/login');
   }
   if (!isClientAdmin(req.session.role)) {
-    return res.status(403).render('error', { message: 'Client administrator access required.' });
+    return res.status(403).render('error', { message: 'Manager access required.' });
   }
   if (req.session.userActive === false) {
     req.session.destroy(() => {});

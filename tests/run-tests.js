@@ -45,6 +45,25 @@ async function main() {
   let failed = 0;
   console.log('Tip: ensure server is running (npm start) and DB is set up (npm run setup-db).\n');
 
+  // 0. API health (JSON)
+  try {
+    const r = await request('GET', '/api/health');
+    if (r.status === 200 && r.body.includes('"ok":true')) {
+      console.log('OK  GET /api/health returns JSON');
+      passed++;
+    } else {
+      console.log('FAIL GET /api/health', r.status, r.body.slice(0, 80));
+      failed++;
+    }
+  } catch (e) {
+    if (e.code === 'ECONNREFUSED' || e.code === 'ECONNRESET') {
+      console.log('FAIL GET /api/health — cannot reach server. Start it first: npm start');
+    } else {
+      console.log('FAIL GET /api/health', e.message);
+    }
+    failed++;
+  }
+
   // 1. Login page loads
   try {
     const r = await request('GET', '/login');
@@ -93,7 +112,13 @@ async function main() {
   if (cookie) {
     try {
       const r = await request('GET', '/documents', { headers: { Cookie: cookie } });
-      if (r.status === 200 && (r.body.includes('Documents') || r.body.includes('Upload'))) {
+      if (
+        r.status === 200 &&
+        (r.body.includes('Documentation') ||
+          r.body.includes('Documents') ||
+          r.body.includes('Upload') ||
+          r.body.includes('document'))
+      ) {
         console.log('OK  GET /documents (authenticated) returns 200');
         passed++;
       } else {

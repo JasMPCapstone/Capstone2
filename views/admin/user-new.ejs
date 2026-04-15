@@ -3,46 +3,33 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Add user — System administration — MedSupply Portal</title>
+  <title>Add manager — System administration — MedSupply Portal</title>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
   <%- include('../partials/header') %>
   <main class="container main-content admin-main">
-    <header class="admin-page-head admin-directory-intro">
-      <p class="admin-kicker"><a href="/admin" class="admin-crumb">System administration</a> / <a href="/admin/users" class="admin-crumb">Users</a> / Add user</p>
-      <h1 class="admin-page-title">Add a new user</h1>
-      <p class="admin-page-lede">
-        Creates a <strong>client administrator</strong> or <strong>client user</strong> under a registered company.
-        Share the temporary password securely; they must change it after signing in.
-      </p>
-    </header>
-
     <% if (typeof message !== 'undefined' && message) { %>
       <div class="alert error"><%= message %></div>
     <% } %>
 
     <% if (!companies || !companies.length) { %>
-      <p class="muted">No companies yet. <a href="/admin/companies/new">Add a company</a> before adding users.</p>
+      <p class="muted">No organizations yet. <a href="/admin/companies/new">Add an organization</a> before adding users.</p>
     <% } else { %>
     <section class="settings-card admin-form-card">
       <h2 class="admin-card-title">Account details</h2>
       <form method="post" action="/admin/users" class="settings-form">
-        <label for="companyId">Company</label>
+        <label for="companyId">Organization</label>
         <select id="companyId" name="companyId" required class="input-text">
-          <option value="" disabled <% if (!preselectCompanyId) { %>selected<% } %>>Select company</option>
+          <option value="" disabled <% if (!preselectCompanyId) { %>selected<% } %>>Select organization</option>
           <% companies.forEach(function(c) { %>
             <option value="<%= c.id %>" <%= preselectCompanyId === c.id ? 'selected' : '' %>><%= c.name %></option>
           <% }); %>
         </select>
 
-        <label for="role">Role</label>
-        <select id="role" name="role" required class="input-text">
-          <option value="CLIENT">Client user (staff)</option>
-          <option value="CLIENT_ADMIN">Client administrator</option>
-        </select>
-        <p class="muted form-hint">Client admins can manage their company’s team and documents; staff upload and view per your process.</p>
+        <input type="hidden" name="role" value="CLIENT_ADMIN" />
+        <p class="muted form-hint">This form creates a <strong>manager</strong> only. Staff accounts are created from each organization’s detail page (<strong>Add user</strong>).</p>
 
         <label for="fullName">Full name</label>
         <input type="text" id="fullName" name="fullName" required class="input-text" autocomplete="name">
@@ -55,7 +42,7 @@
         <p id="pw-hint-new" class="muted form-hint">Minimum 6 characters. User must change this after signing in.</p>
 
         <div class="admin-form-actions">
-          <button type="submit" class="btn btn-primary">Create user</button>
+          <button type="submit" class="btn btn-primary">Create manager</button>
           <a href="/admin/users" class="btn btn-secondary">Cancel</a>
         </div>
       </form>

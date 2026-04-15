@@ -12,6 +12,8 @@ const { verifyToken } = require('../lib/twofactor');
 const { isSystemAdmin } = require('../lib/roles');
 const { applyUserToSession } = require('../lib/session-user');
 const { requireAuth } = require('../middleware/auth');
+const { authLogin: loginLimiter, authForgot: forgotLimiter } = require('../middleware/rateLimit');
+const { safeParseLogin, safeParseLogin2fa, safeParseChangePassword } = require('../lib/validation/schemas');
 
 function postLoginRedirect(role) {
   return isSystemAdmin(role) ? '/admin' : '/dashboard';
@@ -40,19 +42,24 @@ router.get('/login/2fa', (req, res) => {
   res.render('login-2fa', { token, message: req.query.message || '' });
 });
 
-router.post('/login/2fa', async (req, res) => {
+router.post('/login/2fa', loginLimiter, async (req, res) => {
   if (req.session && req.session.userId) {
     return res.redirect(postLoginRedirect(req.session.role));
   }
-  const token = (req.body.token || req.query.token || '').trim();
-  const code = (req.body.code || '').toString().trim().replace(/\s/g, '');
-  if (!token || !code) {
+  const merged = {
+    ...(req.body || {}),
+    token: ((req.body && req.body.token) || (req.query && req.query.token) || '').trim(),
+  };
+  const parsed2fa = safeParseLogin2fa(merged);
+  if (!parsed2fa.ok) {
     return res.status(400).render('login-2fa', {
-      token,
-      message: 'Please enter your 6-digit verification code.',
+      token: merged.token || '',
+      message: parsed2fa.error,
       alertType: 'error',
     });
   }
+  const token = parsed2fa.data.token;
+  const code = parsed2fa.data.code;
   const pending = getPendingLogin(token);
   if (!pending) {
     await log({ action: 'LOGIN_FAILURE', details: '2FA token expired or invalid', req });
@@ -114,25 +121,17 @@ router.get('/account/change-password', requireAuth, (req, res) => {
 
 router.post('/account/change-password', requireAuth, async (req, res) => {
   const pwUser = { passwordMustChange: !!req.session.passwordMustChange };
+  const parsed = safeParseChangePassword(req.body);
+  if (!parsed.ok) {
+    return res.status(400).render('account/change-password', {
+      message: parsed.error,
+      alertType: 'error',
+      navActive: null,
+      user: pwUser,
+    });
+  }
   const current = (req.body.currentPassword || '').toString();
-  const nextPass = (req.body.newPassword || '').toString();
-  const confirm = (req.body.confirmPassword || '').toString();
-  if (!nextPass || nextPass.length < 6) {
-    return res.status(400).render('account/change-password', {
-      message: 'New password must be at least 6 characters.',
-      alertType: 'error',
-      navActive: null,
-      user: pwUser,
-    });
-  }
-  if (nextPass !== confirm) {
-    return res.status(400).render('account/change-password', {
-      message: 'New passwords do not match.',
-      alertType: 'error',
-      navActive: null,
-      user: pwUser,
-    });
-  }
+  const nextPass = parsed.data.newPassword;
   try {
     const [rows] = await pool.query(
       'SELECT password_hash, password_must_change FROM users WHERE id = ?',
@@ -179,15 +178,14 @@ router.post('/account/change-password', requireAuth, async (req, res) => {
   }
 });
 
-router.post('/login', async (req, res) => {
-  const { email, password } = req.body || {};
-  const emailTrim = (email || '').toString().trim().toLowerCase();
-  const pass = (password || '').toString();
-
-  if (!emailTrim || !pass) {
-    await log({ action: 'LOGIN_FAILURE', details: 'Missing email or password', req });
-    return res.status(400).render('login', { message: 'Email and password are required.', alertType: 'error' });
+router.post('/login', loginLimiter, async (req, res) => {
+  const parsed = safeParseLogin(req.body);
+  if (!parsed.ok) {
+    await log({ action: 'LOGIN_FAILURE', details: parsed.error, req });
+    return res.status(400).render('login', { message: parsed.error, alertType: 'error' });
   }
+  const emailTrim = parsed.data.email;
+  const pass = parsed.data.password;
 
   try {
     const [rows] = await pool.query(
@@ -243,7 +241,7 @@ router.get('/forgot-password', (req, res) => {
   res.render('forgot-password', { message: req.query.message || '' });
 });
 
-router.post('/forgot-password', async (req, res) => {
+router.post('/forgot-password', forgotLimiter, async (req, res) => {
   const email = (req.body.email || '').toString().trim().toLowerCase();
   if (!email) {
     return res.status(400).render('forgot-password', { message: 'Please enter your email.', alertType: 'error' });

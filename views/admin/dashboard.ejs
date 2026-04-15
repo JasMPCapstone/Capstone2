@@ -16,13 +16,13 @@
     <nav class="admin-dashboard-kpis" aria-label="Quick access to key areas">
       <a href="/admin/companies" class="admin-kpi-card">
         <div class="admin-kpi-card-head">
-          <span class="admin-kpi-card-title">Companies</span>
+          <span class="admin-kpi-card-title">Organizations</span>
           <span class="admin-kpi-card-icon" aria-hidden="true">
             <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 21h18"/><path d="M5 21V7l8-4v18"/><path d="M19 21V11l-6-4"/><path d="M9 9v.01"/><path d="M9 12v.01"/><path d="M9 15v.01"/><path d="M9 18v.01"/></svg>
           </span>
         </div>
         <div class="admin-kpi-card-spacer"></div>
-        <div class="admin-kpi-card-value" aria-label="Total companies"><%= companyCount %></div>
+        <div class="admin-kpi-card-value" aria-label="Total organizations"><%= companyCount %></div>
       </a>
       <a href="/admin/users" class="admin-kpi-card">
         <div class="admin-kpi-card-head">
@@ -80,7 +80,7 @@
               <thead>
                 <tr>
                   <th scope="col" class="col-name">Document name</th>
-                  <th scope="col" class="col-company">Company</th>
+                  <th scope="col" class="col-company">Organization</th>
                   <th scope="col" class="col-date">Date</th>
                   <th scope="col" class="col-actions">Actions</th>
                 </tr>
@@ -120,7 +120,7 @@
                       </button>
                     </form>
                     <% } else { %>
-                    <span class="admin-pending-no-company muted" title="Missing company on uploader — open document in library to resolve">—</span>
+                    <span class="admin-pending-no-company muted" title="Missing organization on uploader — open document in library to resolve">—</span>
                     <% } %>
                   </td>
                 </tr>
@@ -136,10 +136,10 @@
           <h2 id="dash-onboarding-title" class="admin-dashboard-alert-heading">Client onboarding</h2>
           <% var _ob = typeof adminOnboardingCompanies !== 'undefined' && adminOnboardingCompanies ? adminOnboardingCompanies : []; %>
           <% if (_ob.length) { %>
-            <a href="/admin/companies" class="admin-dashboard-alert-more">Company management</a>
+            <a href="/admin/companies" class="admin-dashboard-alert-more">Organization management</a>
           <% } %>
         </div>
-        <p class="admin-dashboard-alert-lede muted">Organizations that still need a client administrator.</p>
+        <p class="admin-dashboard-alert-lede muted">Organizations that still need a manager.</p>
         <% if (!_ob.length) { %>
           <p class="admin-dashboard-alert-empty muted">None right now.</p>
         <% } else { %>
@@ -148,7 +148,7 @@
             <li>
               <a href="/admin/companies/<%= c.id %>/admins/new" class="admin-dashboard-alert-link">
                 <span class="admin-dashboard-alert-primary"><%= c.name %></span>
-                <span class="admin-dashboard-alert-meta">Added <%= new Date(c.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) %> · Add client admin</span>
+                <span class="admin-dashboard-alert-meta">Added <%= new Date(c.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) %> · Add manager</span>
               </a>
             </li>
             <% }); %>
@@ -191,7 +191,7 @@
           meta.innerHTML =
             '<dl class="admin-dash-preview-dl">' +
             '<div><dt>Document</dt><dd>' + escapeHtml(p.title) + '</dd></div>' +
-            '<div><dt>Company</dt><dd>' + escapeHtml(p.company) + '</dd></div>' +
+            '<div><dt>Organization</dt><dd>' + escapeHtml(p.company) + '</dd></div>' +
             '<div><dt>Date</dt><dd>' + escapeHtml(p.date) + '</dd></div>' +
             '<div><dt>Sent by</dt><dd>' + escapeHtml(who) + '</dd></div>' +
             '</dl>';
@@ -209,23 +209,11 @@
 
     <section class="admin-workflow-panel" aria-labelledby="workflow-intro-title">
       <header class="admin-workflow-panel-header">
-        <p class="admin-kicker">System administration</p>
         <h2 id="workflow-intro-title" class="admin-workflow-panel-title">Role and workflow</h2>
       </header>
 
-      <p class="admin-overview-intro">
-        This console is for <strong>system administrators</strong> who operate the MedSupply client portal.
-        Use it to register approved client organizations, issue <strong>client administrator</strong> accounts after onboarding,
-        review and approve uploaded documents, and monitor usage. Day-to-day document and team management is performed by each client admin within their company.
-      </p>
-
-      <div class="admin-overview-divider" role="presentation"></div>
-
       <div class="admin-overview-flow">
         <h3 class="admin-overview-flow-title">Operational workflow</h3>
-        <p class="admin-overview-flow-lede muted">
-          A concise sequence aligned with how most deployments onboard clients. Adjust to match your internal questionnaire and approval process where needed.
-        </p>
         <ol class="admin-workflow-timeline">
           <li class="admin-workflow-timeline-item">
             <div class="admin-workflow-timeline-marker" aria-hidden="true">1</div>
@@ -238,21 +226,21 @@
             <div class="admin-workflow-timeline-marker" aria-hidden="true">2</div>
             <div class="admin-workflow-timeline-body">
               <h4 class="admin-workflow-timeline-heading">Register the organization</h4>
-              <p>Add the client under <a href="/admin/companies">Company management</a> so they exist as a tenant in the portal.</p>
+              <p>Add the client under <a href="/admin/companies">Organization management</a> so they exist as a tenant in the portal.</p>
             </div>
           </li>
           <li class="admin-workflow-timeline-item">
             <div class="admin-workflow-timeline-marker" aria-hidden="true">3</div>
             <div class="admin-workflow-timeline-body">
-              <h4 class="admin-workflow-timeline-heading">Create the client administrator</h4>
-              <p>From that company, provision a client admin account. They complete first sign-in, manage their users, and oversee documents for their organization.</p>
+              <h4 class="admin-workflow-timeline-heading">Create the manager</h4>
+              <p>From that organization’s record, provision a manager account. They complete first sign-in, manage their users, and oversee documents for their organization.</p>
             </div>
           </li>
           <li class="admin-workflow-timeline-item">
             <div class="admin-workflow-timeline-marker" aria-hidden="true">4</div>
             <div class="admin-workflow-timeline-body">
               <h4 class="admin-workflow-timeline-heading">Review documents and monitor activity</h4>
-              <p>Use <a href="/documents">Documents</a> (filter by company) to approve or reject uploads as required. Use <a href="/admin/users">Users</a> and <a href="/admin/audit">Audit log</a> for accountability and analysis.</p>
+              <p>Use <a href="/documents">Documents</a> (filter by organization) to approve or reject uploads as required. Use <a href="/admin/users">Users</a> and <a href="/admin/audit">Audit log</a> for accountability and analysis.</p>
             </div>
           </li>
         </ol>

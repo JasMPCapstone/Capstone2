@@ -10,13 +10,6 @@
 <body>
   <%- include('../partials/header') %>
   <main class="container main-content admin-main">
-    <header class="admin-page-head admin-directory-intro">
-      <p class="admin-kicker"><a href="/admin" class="admin-crumb">System administration</a> / Users</p>
-      <p class="admin-page-lede">
-        Accounts across all client organizations. The <strong>Company</strong> column is the client organization that user belongs to. Open <a href="/documents">All documents</a> to trace uploads by company.
-      </p>
-    </header>
-
     <% if (typeof message !== 'undefined' && message) { %>
       <div class="alert info"><%= message %></div>
     <% } %>
@@ -29,15 +22,14 @@
           <h2 id="users-table-title" class="admin-mgmt-heading">All users <span class="admin-mgmt-count"><%= typeof usersTotalCount !== 'undefined' ? usersTotalCount : users.length %></span></h2>
         </div>
         <div class="admin-mgmt-toolbar-right admin-mgmt-toolbar-actions">
-          <form method="get" action="/admin/users" class="admin-users-filter-form" aria-label="Filter users by company">
-            <select name="companyId" id="filter-company" class="filter-select admin-users-filter-select" aria-label="Filter by company" onchange="this.form.submit()">
-              <option value="" <%= (typeof selectedCompanyId === 'undefined' || selectedCompanyId === null) ? 'selected' : '' %>>All companies</option>
+          <form method="get" action="/admin/users" class="admin-users-filter-form" aria-label="Filter users by organization">
+            <select name="companyId" id="filter-company" class="filter-select admin-users-filter-select" aria-label="Filter by organization" onchange="this.form.submit()">
+              <option value="" <%= (typeof selectedCompanyId === 'undefined' || selectedCompanyId === null) ? 'selected' : '' %>>All organizations</option>
               <% if (typeof companies !== 'undefined' && companies) { companies.forEach(function(c) { %>
                 <option value="<%= c.id %>" <%= selectedCompanyId === c.id ? 'selected' : '' %>><%= c.name %></option>
               <% }); } %>
             </select>
           </form>
-          <a href="/admin/users/new<%= typeof selectedCompanyId !== 'undefined' && selectedCompanyId !== null ? '?companyId=' + selectedCompanyId : '' %>" class="btn btn-primary btn-sm">+ Add new user</a>
         </div>
       </div>
 
@@ -47,7 +39,7 @@
             <tr>
               <th scope="col">Name</th>
               <th scope="col">Role</th>
-              <th scope="col">Company</th>
+              <th scope="col">Organization</th>
               <th scope="col">Status</th>
               <th scope="col">Actions</th>
             </tr>
@@ -71,9 +63,9 @@
                 <% if (u.role === 'SYSTEM_ADMIN' || u.role === 'ADMIN') { %>
                   <span class="role-pill role-pill-system">System admin</span>
                 <% } else if (u.role === 'CLIENT_ADMIN') { %>
-                  <span class="role-pill role-pill-client-admin">Client admin</span>
+                  <span class="role-pill role-pill-client-admin">Manager</span>
                 <% } else { %>
-                  <span class="role-pill role-pill-staff">Client user</span>
+                  <span class="role-pill role-pill-staff">Staff</span>
                 <% } %>
               </td>
               <td class="col-company"><%= u.company_name || '—' %></td>
@@ -96,15 +88,13 @@
               </td>
               <td class="admin-actions-cell">
                 <div class="admin-action-row">
-                  <a href="/admin/users/<%= u.id %>/reset-password" class="admin-action-link">
+                  <a href="/admin/users/<%= u.id %>/reset-password" class="admin-action-link admin-action-link--icon-only" title="Reset password" aria-label="Reset password">
                     <svg class="admin-action-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
-                    Reset password
                   </a>
                   <% if (u.id !== user.userId) { %>
                     <form action="/admin/users/<%= u.id %>/delete" method="post" class="admin-inline-form" onsubmit="return confirm('Permanently delete this user and all of their uploaded documents? This cannot be undone.');">
-                      <button type="submit" class="admin-action-link admin-action-link--danger" title="Permanently remove user and documents">
+                      <button type="submit" class="admin-action-link admin-action-link--danger admin-action-link--icon-only" title="Delete user" aria-label="Delete">
                         <svg class="admin-action-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
-                        Delete
                       </button>
                     </form>
                   <% } %>

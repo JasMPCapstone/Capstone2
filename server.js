@@ -1,6 +1,7 @@
 require('dotenv').config();
 const path = require('path');
 const express = require('express');
+const helmet = require('helmet');
 const session = require('express-session');
 const multer = require('multer');
 
@@ -14,10 +15,22 @@ const { isSystemAdmin, isClientAdmin } = require('./lib/roles');
 const documentRoutes = require('./routes/documents');
 const adminRoutes = require('./routes/admin');
 const companyRoutes = require('./routes/company');
+const apiRoutes = require('./routes/api');
 const { enforceOnboarding } = require('./middleware/onboarding');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+if (process.env.TRUST_PROXY === '1' || process.env.NODE_ENV === 'production') {
+  app.set('trust proxy', 1);
+}
+
+app.use(
+  helmet({
+    contentSecurityPolicy: false,
+    crossOriginEmbedderPolicy: false,
+  })
+);
 
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
@@ -85,7 +98,7 @@ function buildAdminNotifyFeed(docRows, companyRows) {
     items.push({
       sort: new Date(c.created_at).getTime(),
       href: `/admin/companies/${c.id}/admins/new`,
-      title: `${c.name} — add a client administrator`,
+      title: `${c.name} — add a manager`,
       meta: `${adminShortDate(c.created_at)}`,
     });
   });
@@ -163,6 +176,7 @@ app.use(async (req, res, next) => {
   next();
 });
 
+app.use('/api', apiRoutes);
 app.use('/', authRoutes);
 app.use('/documents', documentRoutes);
 app.use('/admin', adminRoutes);
@@ -398,6 +412,17 @@ app.post('/settings/2fa/disable', requireAuth, enforceOnboarding, async (req, re
     res.status(500).render('error', { message: 'Failed to disable 2FA.' });
   }
 });
+
+if (process.env.SERVE_SPA === '1') {
+  const clientDist = path.join(__dirname, 'client', 'dist');
+  app.use('/app', express.static(clientDist));
+  app.get(/^\/app(\/.*)?$/, (req, res, next) => {
+    if (req.method !== 'GET' && req.method !== 'HEAD') return next();
+    res.sendFile(path.join(clientDist, 'index.html'), (err) => {
+      if (err) next(err);
+    });
+  });
+}
 
 app.use((err, req, res, next) => {
   if (err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE') {

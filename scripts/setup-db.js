@@ -62,7 +62,7 @@ async function run() {
     );
     console.log('Seed data created.');
     console.log('  System admin:   admin@medsupply.com / admin123');
-    console.log('  Client admin:   clientadmin@example.com / clientadmin123');
+    console.log('  Manager (CLIENT_ADMIN): clientadmin@example.com / clientadmin123');
     console.log('  Staff:          client@example.com / client123');
   } catch (err) {
     console.error('Setup failed:', err.message || err.code || String(err));

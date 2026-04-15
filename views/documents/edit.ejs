@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Edit document — Med Supply Innovation</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <%- include('../partials/header') %>
+  <main class="container main-content">
+    <a href="/documents/<%= doc.id %>" class="back-link">← Back to document</a>
+    <h1>Edit document</h1>
+    <p class="muted">Update title, type, tags, and description. The file itself is not replaced here.</p>
+    <% if (typeof message !== 'undefined' && message) { %>
+      <div class="alert error"><%= message %></div>
+    <% } %>
+    <div class="upload-card" style="max-width: 640px;">
+      <form method="post" action="/documents/<%= doc.id %>/edit">
+        <div class="form-section">
+          <label for="title">Title</label>
+          <input type="text" id="title" name="title" class="input-text" value="<%= (doc.title || doc.original_filename || '').toString().replace(/"/g, '&quot;') %>" required maxlength="255">
+        </div>
+        <div class="form-section">
+          <label for="documentType">Document type</label>
+          <select name="documentType" id="documentType" class="input-select">
+            <option value="">—</option>
+            <option value="Facility Accreditation Certificate" <%= doc.document_type === 'Facility Accreditation Certificate' ? 'selected' : '' %>>Facility Accreditation Certificate</option>
+            <option value="Procurement Policy" <%= doc.document_type === 'Procurement Policy' ? 'selected' : '' %>>Procurement Policy</option>
+            <option value="Floor Plan" <%= doc.document_type === 'Floor Plan' ? 'selected' : '' %>>Floor Plan</option>
+            <option value="Inventory Report" <%= doc.document_type === 'Inventory Report' ? 'selected' : '' %>>Inventory Report</option>
+            <option value="Compliance Certificate" <%= doc.document_type === 'Compliance Certificate' ? 'selected' : '' %>>Compliance Certificate</option>
+            <option value="Other" <%= doc.document_type === 'Other' ? 'selected' : '' %>>Other</option>
+          </select>
+        </div>
+        <div class="form-section">
+          <label for="description">Description</label>
+          <textarea id="description" name="description" rows="4" class="input-textarea" placeholder="Optional"><%= (doc.description || '').toString() %></textarea>
+        </div>
+        <div class="form-section">
+          <label for="tags">Tags</label>
+          <input type="text" id="tags" name="tags" class="input-text" value="<%= (doc.tags || '').toString().replace(/"/g, '&quot;') %>" placeholder="comma-separated" maxlength="500">
+        </div>
+        <div class="form-section form-section-submit">
+          <button type="submit" class="btn btn-primary">Save changes</button>
+          <a href="/documents/<%= doc.id %>" class="btn btn-secondary" style="margin-left: 0.5rem;">Cancel</a>
+        </div>
+      </form>
+    </div>
+  </main>
+  <%- include('../partials/footer') %>
+</body>
+</html>

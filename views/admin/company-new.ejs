@@ -3,33 +3,24 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Add company — System administration — MedSupply Portal</title>
+  <title>Add organization — System administration — MedSupply Portal</title>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
   <%- include('../partials/header') %>
   <main class="container main-content admin-main">
-    <header class="admin-page-head admin-directory-intro">
-      <p class="admin-kicker"><a href="/admin" class="admin-crumb">System administration</a> / <a href="/admin/companies" class="admin-crumb">Company management</a> / Add company</p>
-      <h1 class="admin-page-title">Add a company</h1>
-      <p class="admin-page-lede">
-        Register the organization and its first <strong>client administrator</strong> in one step. Use the legal or trading name from the client contract.
-        To add another administrator later, open the company from <a href="/admin/companies">Company management</a> and use <strong>Add client admin</strong>.
-      </p>
-    </header>
-
     <% if (typeof message !== 'undefined' && message) { %>
       <div class="alert error"><%= message %></div>
     <% } %>
 
     <section class="settings-card admin-form-card company-new-form-card">
       <form method="post" action="/admin/companies" class="settings-form">
-        <h2 class="admin-card-title">Company details</h2>
-        <label for="name">Company name</label>
+        <h2 class="admin-card-title">Organization details</h2>
+        <label for="name">Organization name</label>
         <input type="text" id="name" name="name" required class="input-text" maxlength="255" placeholder="Organization name" autocomplete="organization">
 
-        <h2 class="admin-card-title admin-form-subheading">Client administrator</h2>
+        <h2 class="admin-card-title admin-form-subheading">Manager</h2>
         <p class="muted admin-card-intro">This person manages the organization in the portal: first sign-in, team accounts, and documents. Share the temporary password through a secure channel.</p>
 
         <label for="fullName">Full name</label>
@@ -43,7 +34,7 @@
         <p id="company-new-pw-hint" class="muted form-hint">Minimum 6 characters. They must change this after signing in.</p>
 
         <div class="admin-form-actions">
-          <button type="submit" class="btn btn-primary">Create company</button>
+          <button type="submit" class="btn btn-primary">Create organization</button>
           <a href="/admin/companies" class="btn btn-secondary">Cancel</a>
         </div>
       </form>

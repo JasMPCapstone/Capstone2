@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title><%= company.name %> — Companies — MedSupply Portal</title>
+  <title><%= company.name %> — Organizations — MedSupply Portal</title>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="stylesheet" href="/css/style.css">
 </head>
@@ -11,19 +11,14 @@
   <%- include('../partials/header') %>
   <main class="container main-content admin-main">
     <header class="admin-page-head">
-      <p class="admin-kicker"><a href="/admin" class="admin-crumb">System administration</a> / <a href="/admin/companies" class="admin-crumb">Company management</a></p>
-      <p class="admin-page-subline">Organization detail</p>
-      <p class="admin-page-lede">
-        Review users and documents for this client. Set each document to <strong>waiting for approval</strong>, <strong>approved</strong>, or <strong>rejected</strong>.
-        New uploads start as waiting for approval and appear in the notification count on the companies list until you change the status.
-      </p>
-      <p class="admin-page-actions">
-        <a href="/admin/companies/<%= company.id %>/admins/new" class="btn btn-primary">Add client admin</a>
+      <div class="admin-page-actions admin-page-actions-toolbar">
+        <a href="/admin/companies/<%= company.id %>/admins/new" class="btn btn-primary">Add manager</a>
+        <a href="/admin/companies/<%= company.id %>/users/new" class="btn btn-secondary">Add user</a>
         <a href="/documents?companyId=<%= company.id %>" class="btn btn-secondary">Open in document library</a>
-        <form method="post" action="/admin/companies/<%= company.id %>/delete" onsubmit="return confirm('Are you sure you want to delete this company? All users, documents, and approvals for this organization will be permanently removed. This cannot be undone.');">
-          <button type="submit" class="btn btn-secondary danger">Delete company</button>
+        <form class="admin-page-actions-form" method="post" action="/admin/companies/<%= company.id %>/delete" onsubmit="return confirm('Are you sure you want to delete this organization? All users, documents, and approvals will be permanently removed. This cannot be undone.');">
+          <button type="submit" class="btn btn-secondary danger">Delete organization</button>
         </form>
-      </p>
+      </div>
     </header>
 
     <% if (typeof message !== 'undefined' && message) { %>
@@ -53,7 +48,7 @@
                     <% if (u.role === 'SYSTEM_ADMIN' || u.role === 'ADMIN') { %>
                       <span class="role-pill role-pill-system">System admin</span>
                     <% } else if (u.role === 'CLIENT_ADMIN') { %>
-                      <span class="role-pill role-pill-client-admin">Client admin</span>
+                      <span class="role-pill role-pill-client-admin">Manager</span>
                     <% } else { %>
                       <span class="role-pill role-pill-staff">Staff</span>
                     <% } %>
@@ -66,7 +61,7 @@
           </table>
         </div>
       <% } else { %>
-        <p class="muted">No users linked to this company yet. Add a client administrator to get started.</p>
+        <p class="muted">No users linked to this organization yet. Add a manager to get started.</p>
       <% } %>
     </section>
 
@@ -93,7 +88,7 @@
                   </td>
                   <td><%= d.owner_name %></td>
                   <td>
-                    <% if (d.owner_role === 'CLIENT_ADMIN') { %><span class="role-pill role-pill-client-admin">Client admin</span>
+                    <% if (d.owner_role === 'CLIENT_ADMIN') { %><span class="role-pill role-pill-client-admin">Manager</span>
                     <% } else if (d.owner_role === 'SYSTEM_ADMIN' || d.owner_role === 'ADMIN') { %><span class="role-pill role-pill-system">System admin</span>
                     <% } else { %><span class="role-pill role-pill-staff">Staff</span><% } %>
                   </td>
@@ -115,7 +110,7 @@
           </table>
         </div>
       <% } else { %>
-        <p class="muted">No documents uploaded for this company yet.</p>
+        <p class="muted">No documents uploaded for this organization yet.</p>
       <% } %>
     </section>
   </main>

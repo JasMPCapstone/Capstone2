@@ -7,6 +7,14 @@ const { requireAuth } = require('../middleware/auth');
 const { enforceOnboarding } = require('../middleware/onboarding');
 const { isSystemAdmin, isClientAdmin } = require('../lib/roles');
 const { upload } = require('../middleware/upload');
+const { documentUpload: uploadLimiter } = require('../middleware/rateLimit');
+const { getStorage, isS3Storage } = require('../lib/storage');
+const {
+  DOCUMENT_TYPES,
+  TAGS,
+  buildDocumentsListUrl,
+  queryDocumentList,
+} = require('../lib/services/documentsList');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -29,148 +37,31 @@ function canAccessDocument(userId, role, companyId, doc) {
   return false;
 }
 
-// Document types and tags (same as upload form)
-const DOCUMENT_TYPES = [
-  'Facility Accreditation Certificate',
-  'Procurement Policy',
-  'Floor Plan',
-  'Inventory Report',
-  'Compliance Certificate',
-  'Other',
-];
-
-const TAGS = [
-  'compliance',
-  'inventory',
-  'accreditation',
-  'safety',
-  'quality',
-  'procurement',
-  'regulatory',
-  'financial',
-  'other',
-];
-
 // List documents (client: own only; admin: all). Search and filter.
 router.get('/', async (req, res) => {
   try {
-    const userId = req.session.userId;
     const role = req.session.role;
-    const q = (req.query.q || '').toString().trim();
-    const documentType = (Array.isArray(req.query.documentType) ? req.query.documentType[0] : req.query.documentType || '').toString().trim();
-    const tagsParam = req.query.tags;
-    const tags = Array.isArray(tagsParam) ? tagsParam : (tagsParam ? [tagsParam] : []);
-    const dateFrom = (req.query.dateFrom || '').trim();
-    const dateTo = (req.query.dateTo || '').trim();
-    const sort = (req.query.sort || 'date').toLowerCase();
-
-    let baseWhere = '';
-    const baseParams = [];
-    if (isSystemAdmin(role)) {
-      const rawCid = (req.query.companyId || '').toString().trim();
-      if (rawCid) {
-        const cid = parseInt(rawCid, 10);
-        if (!Number.isNaN(cid) && cid > 0) {
-          baseWhere += ' AND u.company_id = ?';
-          baseParams.push(cid);
-        }
-      }
-    } else if (isClientAdmin(role) && req.session.companyId) {
-      baseWhere = ' AND u.company_id = ?';
-      baseParams.push(req.session.companyId);
-    } else {
-      baseWhere = ' AND d.user_id = ?';
-      baseParams.push(userId);
-    }
-
-    // Use predefined tags (same as upload form)
-    const availableTags = [...TAGS];
-
-    // document_type column added by migration on startup; may not exist if migration failed
-    let hasDocumentType = true;
-    try {
-      await pool.query('SELECT document_type FROM documents LIMIT 1');
-    } catch (colErr) {
-      if (colErr.code === 'ER_BAD_FIELD_ERROR') hasDocumentType = false;
-    }
-
-    let hasApprovalStatus = true;
-    try {
-      await pool.query('SELECT approval_status FROM documents LIMIT 1');
-    } catch (colErr) {
-      if (colErr.code === 'ER_BAD_FIELD_ERROR') hasApprovalStatus = false;
-    }
-
-    const docTypeSelect = hasDocumentType ? 'd.document_type, ' : '';
-    const approvalSelect = hasApprovalStatus ? 'd.approval_status, ' : '';
-    let sql = `
-      SELECT d.id, d.user_id, d.filename, d.original_filename, d.file_type, d.file_extension, d.file_size, d.title, d.description, ${docTypeSelect}${approvalSelect}d.tags, d.created_at, d.updated_at,
-             u.full_name AS owner_name, u.email AS owner_email, u.company_id AS owner_company_id,
-             comp.name AS company_name
-      FROM documents d
-      JOIN users u ON u.id = d.user_id
-      LEFT JOIN companies comp ON comp.id = u.company_id
-      WHERE d.deleted_at IS NULL
-    `;
-    sql += baseWhere;
-    const params = [...baseParams];
-
-    if (q) {
-      sql += ' AND (d.original_filename LIKE ? OR d.title LIKE ?)';
-      const like = `%${q}%`;
-      params.push(like, like);
-    }
-    if (hasDocumentType && documentType && DOCUMENT_TYPES.includes(documentType)) {
-      sql += ' AND LOWER(TRIM(COALESCE(d.document_type, ""))) = LOWER(?)';
-      params.push(documentType);
-    }
-    if (tags.length > 0) {
-      const validTags = tags.map((tag) => (tag || '').toString().trim().toLowerCase()).filter(Boolean);
-      const tagConditions = validTags.map(() => `(
-        LOWER(TRIM(d.tags)) = ? OR
-        LOWER(d.tags) LIKE CONCAT(?, ',%') OR
-        LOWER(d.tags) LIKE CONCAT('%,', ?, ',%') OR
-        LOWER(d.tags) LIKE CONCAT('%,', ?)
-      )`).join(' OR ');
-      sql += ` AND (${tagConditions})`;
-      validTags.forEach((t) => params.push(t, t, t, t));
-    }
-    if (dateFrom) {
-      sql += ' AND d.created_at >= ?';
-      params.push(dateFrom + ' 00:00:00');
-    }
-    if (dateTo) {
-      sql += ' AND d.created_at <= ?';
-      params.push(dateTo + ' 23:59:59');
-    }
-
-    const approvalStatusParam = (req.query.approvalStatus || '').toString().trim().toUpperCase();
-    if (
-      isSystemAdmin(role) &&
-      hasApprovalStatus &&
-      ['PENDING', 'APPROVED', 'REJECTED'].includes(approvalStatusParam)
-    ) {
-      sql += ' AND d.approval_status = ?';
-      params.push(approvalStatusParam);
-    }
-
-    const orderBy = sort === 'name' ? 'd.title ASC, d.original_filename ASC' : sort === 'size' ? 'd.file_size DESC' : 'd.updated_at DESC';
-    sql += ` ORDER BY ${orderBy}`;
-    const [rows] = await pool.query(sql, params);
-
-    let companiesForFilter = [];
-    if (isSystemAdmin(role)) {
-      const [companies] = await pool.query('SELECT id, name FROM companies ORDER BY name ASC');
-      companiesForFilter = companies;
-    }
+    const list = await queryDocumentList(
+      pool,
+      {
+        userId: req.session.userId,
+        role: req.session.role,
+        companyId: req.session.companyId,
+      },
+      req.query
+    );
+    const { rows, hasApprovalStatus, activeTab, companiesForFilter, availableTags } = list;
 
     let docPageTitle = 'My Documents';
     if (isSystemAdmin(role)) docPageTitle = 'All documents';
     else if (isClientAdmin(role)) docPageTitle = 'Company documents';
 
+    const queryForUrls = req.query;
     const listLocals = {
       documents: rows,
       query: req.query,
+      activeTab,
+      docListUrl: (overrides) => buildDocumentsListUrl(queryForUrls, overrides),
       availableTags,
       companiesForFilter,
       hasApprovalStatus,
@@ -194,7 +85,7 @@ router.get('/upload', (req, res) => {
 });
 
 // Upload handler
-router.post('/upload', upload.single('document'), async (req, res) => {
+router.post('/upload', uploadLimiter, upload.single('document'), async (req, res) => {
   if (!req.file) {
     const upErr = { message: 'Please select a file (PDF, DOCX, JPG, XLSX, or CSV).', navActive: 'upload' };
     if (isSystemAdmin(req.session.role)) upErr.adminPageTitle = 'Upload document';
@@ -281,15 +172,26 @@ router.post('/upload', upload.single('document'), async (req, res) => {
         );
       } else throw colErr;
     }
+    if (isS3Storage()) {
+      const storage = getStorage();
+      try {
+        await storage.putFileFromPath(req.file.path, req.file.filename, req.file.mimetype);
+      } catch (upErr) {
+        await pool.query('DELETE FROM documents WHERE id = ?', [result.insertId]);
+        throw upErr;
+      }
+      fs.unlink(req.file.path, () => {});
+    }
+
     await log({
       userId: req.session.userId,
       action: 'DOCUMENT_UPLOAD',
-      details: `id=${result.insertId} file=${req.file.originalname}`,
+      details: `id=${result.insertId} file=${req.file.originalname} storage=${isS3Storage() ? 's3' : 'local'}`,
       req,
     });
     res.redirect('/documents');
   } catch (err) {
-    fs.unlink(req.file.path, () => {});
+    if (req.file && req.file.path) fs.unlink(req.file.path, () => {});
     console.error(err);
     const upFail = { message: 'Upload failed. Please try again.', navActive: 'upload' };
     if (isSystemAdmin(req.session.role)) upFail.adminPageTitle = 'Upload document';
@@ -312,6 +214,18 @@ router.get('/:id/view', async (req, res) => {
     if (!canAccessDocument(req.session.userId, req.session.role, req.session.companyId, doc)) {
       return res.status(403).send('Access denied');
     }
+    if (isS3Storage()) {
+      const storage = getStorage();
+      const stream = await storage.getObjectStream(doc.filename);
+      if (!stream) return res.status(404).send('File not found');
+      res.setHeader('Content-Type', doc.file_type || 'application/octet-stream');
+      res.setHeader('Content-Disposition', 'inline; filename="' + encodeURIComponent(doc.original_filename) + '"');
+      stream.on('error', () => {
+        if (!res.headersSent) res.status(500).end();
+      });
+      stream.pipe(res);
+      return;
+    }
     const filePath = path.join(uploadDir, doc.filename);
     if (!fs.existsSync(filePath)) return res.status(404).send('File not found');
     res.setHeader('Content-Type', doc.file_type || 'application/octet-stream');
@@ -329,8 +243,12 @@ router.get('/:id', async (req, res) => {
   if (!id) return res.status(400).redirect('/documents');
   try {
     const [rows] = await pool.query(
-      `SELECT d.*, u.full_name AS owner_name, u.email AS owner_email, u.company_id AS owner_company_id
-       FROM documents d JOIN users u ON u.id = d.user_id WHERE d.id = ? AND d.deleted_at IS NULL`,
+      `SELECT d.*, u.full_name AS owner_name, u.email AS owner_email, u.company_id AS owner_company_id,
+              comp.name AS company_name
+       FROM documents d
+       JOIN users u ON u.id = d.user_id
+       LEFT JOIN companies comp ON comp.id = u.company_id
+       WHERE d.id = ? AND d.deleted_at IS NULL`,
       [id]
     );
     const doc = rows[0];
@@ -368,16 +286,30 @@ router.get('/:id/download', async (req, res) => {
     if (!canAccessDocument(req.session.userId, req.session.role, req.session.companyId, doc)) {
       return res.status(403).render('error', { message: 'Access denied.' });
     }
-    const filePath = path.join(uploadDir, doc.filename);
-    if (!fs.existsSync(filePath)) {
-      return res.status(404).render('error', { message: 'File not found on server.' });
-    }
     await log({
       userId: req.session.userId,
       action: 'DOCUMENT_DOWNLOAD',
       details: `id=${id} file=${doc.original_filename}`,
       req,
     });
+    if (isS3Storage()) {
+      const storage = getStorage();
+      const stream = await storage.getObjectStream(doc.filename);
+      if (!stream) {
+        return res.status(404).render('error', { message: 'File not found on server.' });
+      }
+      res.setHeader('Content-Type', doc.file_type || 'application/octet-stream');
+      res.setHeader('Content-Disposition', 'attachment; filename="' + encodeURIComponent(doc.original_filename) + '"');
+      stream.on('error', () => {
+        if (!res.headersSent) res.status(500).end();
+      });
+      stream.pipe(res);
+      return;
+    }
+    const filePath = path.join(uploadDir, doc.filename);
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).render('error', { message: 'File not found on server.' });
+    }
     res.download(filePath, doc.original_filename);
   } catch (err) {
     console.error(err);
@@ -472,8 +404,13 @@ router.post('/:id/delete', async (req, res) => {
     if (!canAccessDocument(req.session.userId, req.session.role, req.session.companyId, doc)) {
       return res.status(403).render('error', { message: 'Access denied.' });
     }
-    const filePath = path.join(uploadDir, doc.filename);
-    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    if (isS3Storage()) {
+      const storage = getStorage();
+      await storage.deleteObject(doc.filename);
+    } else {
+      const filePath = path.join(uploadDir, doc.filename);
+      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    }
     await pool.query('DELETE FROM documents WHERE id = ?', [id]);
     await log({
       userId: req.session.userId,
