@@ -1,0 +1,46 @@
+{"sessionId":"cd6650","hypothesisId":"C","location":"App.jsx:ProtectedLayout","message":"assign change-password","data":{"pathname":"/"},"timestamp":1776923795943}
+{"sessionId":"cd6650","hypothesisId":"A","location":"api.js:403-onboarding","message":"ONBOARDING 403","data":{"redirect":"/account/change-password","here":"/","alreadyAtTarget":false,"apiPath":"/api/notifications"},"timestamp":1776923795995}
+{"sessionId":"cd6650","hypothesisId":"E","location":"useNotifications.js:refresh","message":"notifications fetch non-ok","data":{"kind":"redirect","here":"/"},"timestamp":1776923795996}
+{"sessionId":"cd6650","hypothesisId":"A","location":"api.js:403-onboarding","message":"ONBOARDING 403","data":{"redirect":"/account/change-password","here":"/","alreadyAtTarget":false,"apiPath":"/api/documents?page=1&pageSize=500"},"timestamp":1776923796027}
+{"sessionId":"cd6650","hypothesisId":"D","location":"ProfilePage.jsx:effect","message":"profile fetch effect run","data":{"search":"/profile"},"timestamp":1776923796536}
+{"sessionId":"cd6650","hypothesisId":"C","location":"App.jsx:ProtectedLayout","message":"assign change-password","data":{"pathname":"/profile"},"timestamp":1776923796537}
+{"sessionId":"cd6650","hypothesisId":"D","location":"ProfilePage.jsx:effect","message":"profile fetch effect run","data":{"search":"/profile"},"timestamp":1776923796817}
+{"sessionId":"cd6650","hypothesisId":"C","location":"App.jsx:ProtectedLayout","message":"assign change-password","data":{"pathname":"/profile"},"timestamp":1776923796818}
+{"sessionId":"cd6650","hypothesisId":"D","location":"ProfilePage.jsx:effect","message":"profile fetch effect run","data":{"search":"/profile"},"timestamp":1776923797118}
+{"sessionId":"cd6650","hypothesisId":"C","location":"App.jsx:ProtectedLayout","message":"assign change-password","data":{"pathname":"/profile"},"timestamp":1776923797119}
+{"sessionId":"cd6650","hypothesisId":"D","location":"ProfilePage.jsx:effect","message":"profile fetch effect run","data":{"search":"/profile"},"timestamp":1776923797431}
+{"sessionId":"cd6650","hypothesisId":"C","location":"App.jsx:ProtectedLayout","message":"assign change-password","data":{"pathname":"/profile"},"timestamp":1776923797432}
+{"sessionId":"cd6650","hypothesisId":"D","location":"ProfilePage.jsx:effect","message":"profile fetch effect run","data":{"search":"/profile"},"timestamp":1776923797691}
+{"sessionId":"cd6650","hypothesisId":"C","location":"App.jsx:ProtectedLayout","message":"assign change-password","data":{"pathname":"/profile"},"timestamp":1776923797691}
+{"sessionId":"cd6650","hypothesisId":"D","location":"ProfilePage.jsx:effect","message":"profile fetch effect run","data":{"search":"/profile"},"timestamp":1776923797925}
+{"sessionId":"cd6650","hypothesisId":"C","location":"App.jsx:ProtectedLayout","message":"assign change-password","data":{"pathname":"/profile"},"timestamp":1776923797926}
+{"sessionId":"cd6650","hypothesisId":"D","location":"ProfilePage.jsx:effect","message":"profile fetch effect run","data":{"search":"/profile"},"timestamp":1776923798215}
+{"sessionId":"cd6650","hypothesisId":"C","location":"App.jsx:ProtectedLayout","message":"assign change-password","data":{"pathname":"/profile"},"timestamp":1776923798215}
+{"sessionId":"cd6650","hypothesisId":"D","location":"ProfilePage.jsx:effect","message":"profile fetch effect run","data":{"search":"/profile"},"timestamp":1776923798520}
+{"sessionId":"cd6650","hypothesisId":"C","location":"App.jsx:ProtectedLayout","message":"assign change-password","data":{"pathname":"/profile"},"timestamp":1776923798521}
+{"sessionId":"cd6650","hypothesisId":"D","location":"ProfilePage.jsx:effect","message":"profile fetch effect run","data":{"search":"/profile"},"timestamp":1776923798775}
+{"sessionId":"cd6650","hypothesisId":"C","location":"App.jsx:ProtectedLayout","message":"assign change-password","data":{"pathname":"/profile"},"timestamp":1776923798776}
+{"sessionId":"cd6650","hypothesisId":"D","location":"ProfilePage.jsx:effect","message":"profile fetch effect run","data":{"search":"/profile"},"timestamp":1776923799026}
+{"sessionId":"cd6650","hypothesisId":"C","location":"App.jsx:ProtectedLayout","message":"assign change-password","data":{"pathname":"/profile"},"timestamp":1776923799027}
+{"sessionId":"cd6650","hypothesisId":"D","location":"ProfilePage.jsx:effect","message":"profile fetch effect run","data":{"search":"/profile"},"timestamp":1776923799237}
+{"sessionId":"cd6650","hypothesisId":"C","location":"App.jsx:ProtectedLayout","message":"assign change-password","data":{"pathname":"/profile"},"timestamp":1776923799238}
+{"sessionId":"cd6650","hypothesisId":"D","location":"ProfilePage.jsx:effect","message":"profile fetch effect run","data":{"search":"/profile"},"timestamp":1776923799458}
+{"sessionId":"cd6650","hypothesisId":"C","location":"App.jsx:ProtectedLayout","message":"assign change-password","data":{"pathname":"/profile"},"timestamp":1776923799458}
+{"sessionId":"cd6650","hypothesisId":"D","location":"ProfilePage.jsx:effect","message":"profile fetch effect run","data":{"search":"/profile"},"timestamp":1776923799742}
+{"sessionId":"cd6650","hypothesisId":"C","location":"App.jsx:ProtectedLayout","message":"assign change-password","data":{"pathname":"/profile"},"timestamp":1776923799742}
+{"sessionId":"cd6650","hypothesisId":"D","location":"ProfilePage.jsx:effect","message":"profile fetch effect run","data":{"search":"/profile"},"timestamp":1776923799998}
+{"sessionId":"cd6650","hypothesisId":"C","location":"App.jsx:ProtectedLayout","message":"assign change-password","data":{"pathname":"/profile"},"timestamp":1776923799999}
+{"sessionId":"cd6650","hypothesisId":"D","location":"ProfilePage.jsx:effect","message":"profile fetch effect run","data":{"search":"/profile"},"timestamp":1776923800284}
+{"sessionId":"cd6650","hypothesisId":"C","location":"App.jsx:ProtectedLayout","message":"assign change-password","data":{"pathname":"/profile"},"timestamp":1776923800284}
+{"sessionId":"cd6650","hypothesisId":"D","location":"ProfilePage.jsx:effect","message":"profile fetch effect run","data":{"search":"/profile"},"timestamp":1776923800554}
+{"sessionId":"cd6650","hypothesisId":"C","location":"App.jsx:ProtectedLayout","message":"assign change-password","data":{"pathname":"/profile"},"timestamp":1776923800555}
+{"sessionId":"cd6650","hypothesisId":"D","location":"ProfilePage.jsx:effect","message":"profile fetch effect run","data":{"search":"/profile"},"timestamp":1776923800766}
+{"sessionId":"cd6650","hypothesisId":"C","location":"App.jsx:ProtectedLayout","message":"assign change-password","data":{"pathname":"/profile"},"timestamp":1776923800766}
+{"sessionId":"cd6650","hypothesisId":"D","location":"ProfilePage.jsx:effect","message":"profile fetch effect run","data":{"search":"/profile"},"timestamp":1776923801033}
+{"sessionId":"cd6650","hypothesisId":"C","location":"App.jsx:ProtectedLayout","message":"assign change-password","data":{"pathname":"/profile"},"timestamp":1776923801034}
+{"sessionId":"cd6650","hypothesisId":"D","location":"ProfilePage.jsx:effect","message":"profile fetch effect run","data":{"search":"/profile"},"timestamp":1776923801312}
+{"sessionId":"cd6650","hypothesisId":"C","location":"App.jsx:ProtectedLayout","message":"assign change-password","data":{"pathname":"/profile"},"timestamp":1776923801313}
+{"sessionId":"cd6650","hypothesisId":"D","location":"ProfilePage.jsx:effect","message":"profile fetch effect run","data":{"search":"/profile"},"timestamp":1776923801718}
+{"sessionId":"cd6650","hypothesisId":"C","location":"App.jsx:ProtectedLayout","message":"assign change-password","data":{"pathname":"/profile"},"timestamp":1776923801718}
+{"sessionId":"cd6650","hypothesisId":"D","location":"ProfilePage.jsx:effect","message":"profile fetch effect run","data":{"search":"/profile"},"timestamp":1776923801958}
+{"sessionId":"cd6650","hypothesisId":"C","location":"App.jsx:ProtectedLayout","message":"assign change-password","data":{"pathname":"/profile"},"timestamp":1776923801959}

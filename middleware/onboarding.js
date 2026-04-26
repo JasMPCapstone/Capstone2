@@ -24,6 +24,7 @@ function enforceOnboarding(req, res, next) {
 
   if (!req.session.profileCompleted) {
     if (
+      p === '/' ||
       p === '/dashboard' ||
       p === '/profile' ||
       p === '/help' ||
@@ -35,7 +36,7 @@ function enforceOnboarding(req, res, next) {
     if (req.method === 'POST' && p === '/profile') {
       return next();
     }
-    return res.redirect('/dashboard?onboarding=profile');
+    return res.redirect('/profile');
   }
 
   if (mustEnforceFullOnboarding(role) && !req.session.twoFactorEnabled) {
@@ -51,4 +52,45 @@ function enforceOnboarding(req, res, next) {
   next();
 }
 
-module.exports = { enforceOnboarding };
+/** JSON API: return 403 + redirect hint instead of HTML redirect (SPA clients). */
+function enforceOnboardingApi(req, res, next) {
+  if (!req.session || !req.session.userId) {
+    return next();
+  }
+  const role = req.session.role;
+  if (isSystemAdmin(role)) {
+    return next();
+  }
+
+  if (req.session.passwordMustChange) {
+    return res.status(403).json({
+      error: 'Password change required',
+      code: 'ONBOARDING',
+      redirect: '/account/change-password',
+    });
+  }
+
+  if (!req.session.profileCompleted) {
+    return res.status(403).json({
+      error: 'Profile completion required',
+      code: 'ONBOARDING',
+      redirect: '/profile',
+    });
+  }
+
+  if (mustEnforceFullOnboarding(role) && !req.session.twoFactorEnabled) {
+    const p = pathOnly(req);
+    if (p.startsWith('/api/settings/2fa')) {
+      return next();
+    }
+    return res.status(403).json({
+      error: 'Two-factor authentication required',
+      code: 'ONBOARDING',
+      redirect: '/settings/2fa?style=required',
+    });
+  }
+
+  next();
+}
+
+module.exports = { enforceOnboarding, enforceOnboardingApi };

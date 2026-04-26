@@ -16,7 +16,7 @@ function requireSystemAdmin(req, res, next) {
     return res.redirect('/login');
   }
   if (!isSystemAdmin(req.session.role)) {
-    return res.status(403).render('error', { message: 'System administrator access required.' });
+    return res.status(403).type('text').send('System administrator access required.');
   }
   if (req.session.userActive === false) {
     req.session.destroy(() => {});
@@ -33,7 +33,7 @@ function requireClientAdmin(req, res, next) {
     return res.redirect('/login');
   }
   if (!isClientAdmin(req.session.role)) {
-    return res.status(403).render('error', { message: 'Manager access required.' });
+    return res.status(403).type('text').send('Manager access required.');
   }
   if (req.session.userActive === false) {
     req.session.destroy(() => {});

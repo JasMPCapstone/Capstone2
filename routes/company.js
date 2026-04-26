@@ -4,37 +4,14 @@ const { pool } = require('../config/database');
 const { log } = require('../lib/audit');
 const { requireAuth, requireClientAdmin } = require('../middleware/auth');
 const { enforceOnboarding } = require('../middleware/onboarding');
+const { sendSpaOr503 } = require('../lib/spa');
 
 const router = express.Router();
 router.use(requireAuth);
 router.use(enforceOnboarding);
 router.use(requireClientAdmin);
 
-router.get('/team', async (req, res) => {
-  try {
-    const companyId = req.session.companyId;
-    if (!companyId) {
-      return res.status(400).render('error', { message: 'Your account is not linked to an organization.' });
-    }
-    const [companyRows] = await pool.query('SELECT name FROM companies WHERE id = ?', [companyId]);
-    const companyName = companyRows[0] ? companyRows[0].name : '';
-    const [members] = await pool.query(
-      `SELECT id, email, full_name, role, is_active, password_must_change, profile_completed, created_at
-       FROM users WHERE company_id = ? ORDER BY role DESC, full_name ASC`,
-      [companyId]
-    );
-    const message = req.query.message || '';
-    res.render('company/team', {
-      companyName,
-      members,
-      message,
-      navActive: 'team',
-    });
-  } catch (err) {
-    console.error(err);
-    res.status(500).render('error', { message: 'Failed to load team.' });
-  }
-});
+router.get('/team', (req, res) => sendSpaOr503(res));
 
 router.post('/team', async (req, res) => {
   const emailTrim = (req.body.email || '').toString().trim().toLowerCase();
@@ -134,25 +111,38 @@ router.post('/team/:id/reactivate', async (req, res) => {
   }
 });
 
-router.get('/team/:id/reset-password', async (req, res) => {
+/** Permanently delete a staff user in the same company (cascades documents). */
+router.post('/team/:id/delete', async (req, res) => {
   const id = parseInt(req.params.id, 10);
   const companyId = req.session.companyId;
   if (!id || !companyId) return res.redirect('/company/team');
+  if (id === req.session.userId) {
+    return res.redirect('/company/team?message=You cannot delete your own account');
+  }
   try {
     const [rows] = await pool.query(
-      'SELECT id, email, full_name, role FROM users WHERE id = ? AND company_id = ?',
+      'SELECT id, email, role FROM users WHERE id = ? AND company_id = ?',
       [id, companyId]
     );
-    const targetUser = rows[0];
-    if (!targetUser || targetUser.role !== 'CLIENT') {
-      return res.status(403).render('error', { message: 'You can only reset passwords for staff on your team.' });
+    const u = rows[0];
+    if (!u || u.role !== 'CLIENT') {
+      return res.redirect('/company/team?message=Only staff accounts can be removed here');
     }
-    res.render('company/reset-password', { targetUser, message: req.query.message || '', navActive: 'team' });
+    await pool.query('DELETE FROM users WHERE id = ?', [id]);
+    await log({
+      userId: req.session.userId,
+      action: 'CLIENT_ADMIN_DELETE_USER',
+      details: `user_id=${id} email=${u.email}`,
+      req,
+    });
+    res.redirect('/company/team?message=User removed from the team');
   } catch (err) {
     console.error(err);
-    res.redirect('/company/team');
+    res.redirect('/company/team?message=Could not remove user');
   }
 });
+
+router.get('/team/:id/reset-password', (req, res) => sendSpaOr503(res));
 
 router.post('/team/:id/reset-password', async (req, res) => {
   const id = parseInt(req.params.id, 10);

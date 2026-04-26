@@ -10,6 +10,8 @@ const path = require('path');
 const mysql = require('mysql2/promise');
 const bcrypt = require('bcryptjs');
 
+const { MEDSUPPLY_ORGANIZATION_NAME } = require('../lib/medsupply-organization');
+
 const DB_NAME = process.env.DB_NAME || 'medsupply_portal';
 const DB_CONFIG = {
   host: process.env.DB_HOST || 'localhost',
@@ -47,8 +49,8 @@ async function run() {
 
     await conn.query(
       `INSERT INTO users (email, password_hash, full_name, role, is_active, company_id, password_must_change, profile_completed, company)
-       VALUES (?, ?, ?, 'SYSTEM_ADMIN', 1, NULL, 0, 1, NULL)`,
-      ['admin@medsupply.com', adminHash, 'System Admin']
+       VALUES (?, ?, ?, 'SYSTEM_ADMIN', 1, ?, 0, 1, ?)`,
+      ['admin@medsupply.com', adminHash, 'System Admin', medsupplyOrgId, MEDSUPPLY_ORGANIZATION_NAME]
     );
     await conn.query(
       `INSERT INTO users (email, password_hash, full_name, role, is_active, company_id, password_must_change, profile_completed, company)

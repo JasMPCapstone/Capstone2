@@ -8,6 +8,7 @@ SET FOREIGN_KEY_CHECKS = 0;
 -- Table: users
 -- ----------------------------
 DROP TABLE IF EXISTS `audit_logs`;
+DROP TABLE IF EXISTS `notification_document_reads`;
 DROP TABLE IF EXISTS `documents`;
 DROP TABLE IF EXISTS `users`;
 DROP TABLE IF EXISTS `companies`;
@@ -33,6 +34,8 @@ CREATE TABLE `users` (
   `suburb` VARCHAR(100) DEFAULT NULL,
   `emergency_contact_name` VARCHAR(255) DEFAULT NULL,
   `emergency_contact_phone` VARCHAR(50) DEFAULT NULL,
+  `phone` VARCHAR(50) DEFAULT NULL,
+  `avatar_filename` VARCHAR(255) DEFAULT NULL COMMENT 'Stored under uploads/avatars/',
   `company` VARCHAR(255) DEFAULT NULL,
   `company_id` INT UNSIGNED DEFAULT NULL,
   `password_must_change` TINYINT(1) NOT NULL DEFAULT 0,
@@ -67,6 +70,7 @@ CREATE TABLE `documents` (
   `document_type` VARCHAR(100) DEFAULT NULL COMMENT 'e.g. Facility Accreditation Certificate',
   `tags` VARCHAR(500) DEFAULT NULL COMMENT 'Comma-separated optional tags',
   `approval_status` VARCHAR(20) NOT NULL DEFAULT 'PENDING' COMMENT 'PENDING APPROVED REJECTED — system admin review',
+  `approval_rejection_reason` TEXT DEFAULT NULL COMMENT 'Required context when system admin rejects',
   `deleted_at` DATETIME DEFAULT NULL,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -77,6 +81,20 @@ CREATE TABLE `documents` (
   KEY `documents_created_at` (`created_at`),
   KEY `documents_file_extension` (`file_extension`),
   CONSTRAINT `documents_user_fk` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ----------------------------
+-- Table: notification_document_reads (per-user seen for bell NEW badge)
+-- ----------------------------
+CREATE TABLE `notification_document_reads` (
+  `user_id` INT UNSIGNED NOT NULL,
+  `document_id` INT UNSIGNED NOT NULL,
+  `read_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`user_id`, `document_id`),
+  KEY `ndr_user` (`user_id`),
+  KEY `ndr_document` (`document_id`),
+  CONSTRAINT `ndr_user_fk` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `ndr_doc_fk` FOREIGN KEY (`document_id`) REFERENCES `documents` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ----------------------------

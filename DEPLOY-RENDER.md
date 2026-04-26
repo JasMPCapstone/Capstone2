@@ -134,6 +134,11 @@ You need to create the tables and seed users in Railway’s MySQL. Use one of th
    | `MAX_UPLOAD_SIZE` | `10485760` |
    | `ALLOWED_EXTENSIONS` | `pdf,docx,xlsx,doc,xls,png,jpg,jpeg` |
    | `DB_SSL` | `false` (needed for Railway MySQL from Render) |
+   | `STORAGE_DRIVER` | `s3` (to store uploads in Amazon S3 instead of Render disk) |
+   | `S3_REGION` | `ap-southeast-2` (or your bucket region) |
+   | `S3_BUCKET` | Your bucket name, e.g. `medsupplyproject-584612873265-ap-southeast-2-an` |
+   | `S3_ACCESS_KEY_ID` | From an IAM user with S3 access to that bucket |
+   | `S3_SECRET_ACCESS_KEY` | Same IAM user’s secret (mark as **Secret** in Render) |
 
 5. **Deploy:**
    - Click **"Create Web Service"**

@@ -64,11 +64,16 @@ async function main() {
     failed++;
   }
 
-  // 1. Login page loads
+  // 1. Login page loads (SPA shell: built client must exist)
   try {
     const r = await request('GET', '/login');
-    if (r.status === 200 && (r.body.includes('Sign In') || r.body.includes('Sign in'))) {
-      console.log('OK  GET /login returns 200 and sign-in form');
+    const spaShell =
+      r.body.includes('id="root"') ||
+      r.body.includes("id='root'") ||
+      r.body.includes('Sign in') ||
+      r.body.includes('Sign In');
+    if (r.status === 200 && spaShell) {
+      console.log('OK  GET /login returns 200 (SPA shell)');
       passed++;
     } else {
       console.log('FAIL GET /login', r.status, r.body.slice(0, 100));
@@ -92,8 +97,8 @@ async function main() {
       body,
     });
     cookie = getCookie(r.headers);
-    if (r.status === 302 && r.headers.location && r.headers.location.startsWith('/admin') && cookie) {
-      console.log('OK  POST /login (system admin) redirects to /admin and sets session');
+    if (r.status === 302 && r.headers.location && r.headers.location === '/' && cookie) {
+      console.log('OK  POST /login (system admin) redirects to / and sets session');
       passed++;
     } else {
       console.log('FAIL POST /login', r.status, r.headers.location, cookie ? 'cookie set' : 'no cookie');
@@ -114,9 +119,9 @@ async function main() {
       const r = await request('GET', '/documents', { headers: { Cookie: cookie } });
       if (
         r.status === 200 &&
-        (r.body.includes('Documentation') ||
+        (r.body.includes('id="root"') ||
+          r.body.includes("id='root'") ||
           r.body.includes('Documents') ||
-          r.body.includes('Upload') ||
           r.body.includes('document'))
       ) {
         console.log('OK  GET /documents (authenticated) returns 200');

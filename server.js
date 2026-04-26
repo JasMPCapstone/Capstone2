@@ -1,5 +1,7 @@
-require('dotenv').config();
 const path = require('path');
+// Always load .env from the app folder (not from whatever directory the shell is in).
+require('dotenv').config({ path: path.join(__dirname, '.env') });
+const fs = require('fs');
 const express = require('express');
 const helmet = require('helmet');
 const session = require('express-session');
@@ -16,7 +18,11 @@ const documentRoutes = require('./routes/documents');
 const adminRoutes = require('./routes/admin');
 const companyRoutes = require('./routes/company');
 const apiRoutes = require('./routes/api');
+const apiAdminRoutes = require('./routes/api-admin');
+const apiCompanyRoutes = require('./routes/api-company');
 const { enforceOnboarding } = require('./middleware/onboarding');
+const { sendSpaOr503 } = require('./lib/spa');
+const { logSmtpStartupHint } = require('./lib/mail');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -32,9 +38,6 @@ app.use(
   })
 );
 
-app.set('view engine', 'ejs');
-app.set('views', path.join(__dirname, 'views'));
-
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 app.use(
@@ -42,7 +45,11 @@ app.use(
     secret: process.env.SESSION_SECRET || 'medsupply-dev-secret',
     resave: false,
     saveUninitialized: false,
-    cookie: { secure: process.env.NODE_ENV === 'production', maxAge: 24 * 60 * 60 * 1000 },
+    cookie: {
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 24 * 60 * 60 * 1000,
+    },
   })
 );
 
@@ -98,7 +105,7 @@ function buildAdminNotifyFeed(docRows, companyRows) {
     items.push({
       sort: new Date(c.created_at).getTime(),
       href: `/admin/companies/${c.id}/admins/new`,
-      title: `${c.name} — add a manager`,
+      title: `${c.name} — add a client admin`,
       meta: `${adminShortDate(c.created_at)}`,
     });
   });
@@ -176,177 +183,57 @@ app.use(async (req, res, next) => {
   next();
 });
 
+app.use('/api/admin', apiAdminRoutes);
+app.use('/api/company', apiCompanyRoutes);
 app.use('/api', apiRoutes);
 app.use('/', authRoutes);
 app.use('/documents', documentRoutes);
 app.use('/admin', adminRoutes);
 app.use('/company', companyRoutes);
 
-app.get('/dashboard', requireAuth, enforceOnboarding, async (req, res) => {
-  if (isSystemAdmin(req.session.role)) return res.redirect('/admin');
+app.post('/profile', requireAuth, enforceOnboarding, async (req, res) => {
+  const userId = req.session.userId;
+  const { preferredName, phone, addressState, addressCity, addressSuburb, emergencyContactName, emergencyContactPhone, company } =
+    req.body || {};
+  const sysAdmin = isSystemAdmin(req.session.role);
   try {
-    const userId = req.session.userId;
-    const companyId = req.session.companyId;
-    let total = 0;
-    let recent = [];
-    if (isClientAdmin(req.session.role) && companyId) {
-      const [[t]] = await pool.query(
-        `SELECT COUNT(*) AS total FROM documents d
-         INNER JOIN users u ON u.id = d.user_id
-         WHERE u.company_id = ? AND d.deleted_at IS NULL`,
-        [companyId]
-      );
-      total = t.total || 0;
-      [recent] = await pool.query(
-        `SELECT d.id, d.title, d.original_filename, d.file_extension, d.file_size, d.created_at, d.description
-         FROM documents d
-         INNER JOIN users u ON u.id = d.user_id
-         WHERE u.company_id = ? AND d.deleted_at IS NULL
-         ORDER BY d.created_at DESC LIMIT 5`,
-        [companyId]
+    const pn = (preferredName || '').toString().trim().slice(0, 255) || null;
+    const ph = (phone || '').toString().trim().slice(0, 50) || null;
+    const st = (addressState || '').toString().trim().slice(0, 100) || null;
+    const city = (addressCity || '').toString().trim().slice(0, 100) || null;
+    const suburb = (addressSuburb || '').toString().trim().slice(0, 100) || null;
+    const ecn = (emergencyContactName || '').toString().trim().slice(0, 255) || null;
+    const ecp = (emergencyContactPhone || '').toString().trim().slice(0, 50) || null;
+
+    if (sysAdmin) {
+      await pool.query(
+        `UPDATE users SET preferred_name = ?, phone = ?, state = ?, city = ?, suburb = ?, emergency_contact_name = ?, emergency_contact_phone = ?, profile_completed = 1 WHERE id = ?`,
+        [pn, ph, st, city, suburb, ecn, ecp, userId]
       );
     } else {
-      const [[t]] = await pool.query(
-        'SELECT COUNT(*) AS total FROM documents WHERE user_id = ? AND deleted_at IS NULL',
-        [userId]
-      );
-      total = t.total || 0;
-      [recent] = await pool.query(
-        'SELECT id, title, original_filename, file_extension, file_size, created_at, description FROM documents WHERE user_id = ? AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 5',
-        [userId]
-      );
-    }
-    let profile = null;
-    try {
-      const [userRows] = await pool.query(
-        `SELECT u.email, u.full_name, u.preferred_name, u.given_name, u.last_name, u.state, u.city, u.suburb,
-                u.emergency_contact_name, u.emergency_contact_phone, u.company, u.company_id, c.name AS organization_name
-         FROM users u
-         LEFT JOIN companies c ON c.id = u.company_id
-         WHERE u.id = ?`,
-        [userId]
-      );
-      profile = userRows[0] || null;
-    } catch (_) {
-      try {
-        const [userRows] = await pool.query(
-          'SELECT email, full_name, preferred_name, state, city, suburb, emergency_contact_name, emergency_contact_phone, company FROM users WHERE id = ?',
-          [userId]
-        );
-        profile = userRows[0] || null;
-      } catch (__) {
-        const [userRows] = await pool.query('SELECT email, full_name FROM users WHERE id = ?', [userId]);
-        profile = userRows[0] || null;
+      let companyVal = (company || '').toString().trim().slice(0, 255) || null;
+      if (req.session.companyId) {
+        const [[coRow]] = await pool.query('SELECT name FROM companies WHERE id = ?', [req.session.companyId]);
+        if (coRow && coRow.name) companyVal = coRow.name;
       }
+      await pool.query(
+        `UPDATE users SET preferred_name = ?, phone = ?, state = ?, city = ?, suburb = ?, emergency_contact_name = ?, emergency_contact_phone = ?, company = ?, profile_completed = 1 WHERE id = ?`,
+        [pn, ph, st, city, suburb, ecn, ecp, companyVal, userId]
+      );
     }
-    if (profile && (profile.state !== undefined || profile.suburb !== undefined || profile.city !== undefined)) {
-      profile.address_state = profile.state;
-      profile.address_city = profile.city;
-      profile.address_suburb = profile.suburb;
-    }
-    if (profile && !profile.given_name && profile.full_name) {
-      const parts = profile.full_name.trim().split(/\s+/);
-      profile.given_name = parts[0] || profile.full_name;
-      profile.last_name = parts.slice(1).join(' ') || '';
-    }
-    if (profile && req.session.companyId && !isSystemAdmin(req.session.role)) {
-      profile.showOrgReadonly = true;
-    }
-    res.render('dashboard', {
-      totalDocs: total || 0,
-      recentDocs: recent || [],
-      profile: profile || {},
-      profileUpdated: req.query.profile === 'updated',
-      needMigration: req.query.profile === 'need-migration',
-      onboardingProfile: req.query.onboarding === 'profile',
-      navActive: 'dashboard',
-    });
-  } catch (err) {
-    console.error(err);
-    res.status(500).render('error', { message: 'Failed to load dashboard.' });
-  }
-});
-
-app.post('/profile', requireAuth, enforceOnboarding, async (req, res) => {
-  if (isSystemAdmin(req.session.role)) return res.redirect('/admin');
-  const userId = req.session.userId;
-  const { preferredName, addressState, addressCity, addressSuburb, emergencyContactName, emergencyContactPhone, company } =
-    req.body || {};
-  try {
-    let companyVal = (company || '').toString().trim().slice(0, 255) || null;
-    if (req.session.companyId) {
-      const [[coRow]] = await pool.query('SELECT name FROM companies WHERE id = ?', [req.session.companyId]);
-      if (coRow && coRow.name) companyVal = coRow.name;
-    }
-    await pool.query(
-      `UPDATE users SET preferred_name = ?, state = ?, city = ?, suburb = ?, emergency_contact_name = ?, emergency_contact_phone = ?, company = ?, profile_completed = 1 WHERE id = ?`,
-      [
-        (preferredName || '').toString().trim().slice(0, 255) || null,
-        (addressState || '').toString().trim().slice(0, 100) || null,
-        (addressCity || '').toString().trim().slice(0, 100) || null,
-        (addressSuburb || '').toString().trim().slice(0, 100) || null,
-        (emergencyContactName || '').toString().trim().slice(0, 255) || null,
-        (emergencyContactPhone || '').toString().trim().slice(0, 50) || null,
-        companyVal,
-        userId,
-      ]
-    );
     req.session.profileCompleted = true;
-    res.redirect('/dashboard?profile=updated');
+    req.session.preferredName = pn || null;
+    res.redirect('/profile?saved=1');
   } catch (err) {
     if (err.code === 'ER_BAD_FIELD_ERROR') {
-      return res.redirect('/dashboard?profile=need-migration');
+      return res.redirect('/?profile=need-migration');
     }
     console.error(err);
-    res.status(500).render('error', { message: 'Failed to update profile.' });
+    res.redirect('/profile?error=save');
   }
 });
 
-app.get('/', (req, res) => {
-  if (req.session && req.session.userId) {
-    return res.redirect(isSystemAdmin(req.session.role) ? '/admin' : '/dashboard');
-  }
-  res.redirect('/login');
-});
-
-app.get('/privacy', (req, res) => {
-  res.render('privacy', { navActive: null });
-});
-
-app.get('/help', (req, res) => {
-  const helpLocals = { navActive: 'help' };
-  if (req.session && req.session.userId && isSystemAdmin(req.session.role)) {
-    helpLocals.adminPageTitle = 'Help';
-  }
-  res.render('help', helpLocals);
-});
-
-app.get('/settings/2fa', requireAuth, enforceOnboarding, async (req, res) => {
-  try {
-    const [rows] = await pool.query('SELECT two_factor_enabled FROM users WHERE id = ?', [req.session.userId]);
-    const enabled = rows[0] && rows[0].two_factor_enabled;
-    const tempSecret = req.session.temp2FASecret;
-    let qrDataURL = null;
-    let manualSecret = null;
-    if (tempSecret) {
-      qrDataURL = await getQRDataURL(tempSecret.otpauth);
-      manualSecret = tempSecret.secret;
-    }
-    const tfaLocals = {
-      twoFactorEnabled: !!enabled,
-      qrDataURL,
-      manualSecret,
-      query: req.query,
-      require2FA: req.query.style === 'required',
-      navActive: 'settings',
-    };
-    if (isSystemAdmin(req.session.role)) tfaLocals.adminPageTitle = 'Two-factor authentication';
-    res.render('settings/2fa', tfaLocals);
-  } catch (err) {
-    console.error(err);
-    res.status(500).render('error', { message: 'Failed to load settings.' });
-  }
-});
+app.get('/settings/2fa', requireAuth, enforceOnboarding, (req, res) => sendSpaOr503(res));
 
 app.post('/settings/2fa/enable', requireAuth, enforceOnboarding, async (req, res) => {
   try {
@@ -355,7 +242,7 @@ app.post('/settings/2fa/enable', requireAuth, enforceOnboarding, async (req, res
     res.redirect('/settings/2fa');
   } catch (err) {
     console.error(err);
-    res.status(500).render('error', { message: 'Failed to start 2FA setup.' });
+    res.redirect('/settings/2fa?error=setup');
   }
 });
 
@@ -380,7 +267,7 @@ app.post('/settings/2fa/verify', requireAuth, enforceOnboarding, async (req, res
   } catch (err) {
     console.error(err);
     delete req.session.temp2FASecret;
-    res.status(500).render('error', { message: 'Failed to enable 2FA.' });
+    res.redirect('/settings/2fa?error=enable');
   }
 });
 
@@ -409,16 +296,18 @@ app.post('/settings/2fa/disable', requireAuth, enforceOnboarding, async (req, re
     res.redirect('/settings/2fa?disabled=1');
   } catch (err) {
     console.error(err);
-    res.status(500).render('error', { message: 'Failed to disable 2FA.' });
+    res.redirect('/settings/2fa?error=disable');
   }
 });
 
-if (process.env.SERVE_SPA === '1') {
-  const clientDist = path.join(__dirname, 'client', 'dist');
-  app.use('/app', express.static(clientDist));
-  app.get(/^\/app(\/.*)?$/, (req, res, next) => {
+const clientDist = path.join(__dirname, 'client', 'dist');
+const spaIndexPath = path.join(clientDist, 'index.html');
+if (fs.existsSync(spaIndexPath)) {
+  app.use(express.static(clientDist));
+  app.get('*', (req, res, next) => {
     if (req.method !== 'GET' && req.method !== 'HEAD') return next();
-    res.sendFile(path.join(clientDist, 'index.html'), (err) => {
+    if (req.path.startsWith('/api')) return next();
+    res.sendFile(spaIndexPath, (err) => {
       if (err) next(err);
     });
   });
@@ -426,13 +315,13 @@ if (process.env.SERVE_SPA === '1') {
 
 app.use((err, req, res, next) => {
   if (err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE') {
-    return res.status(400).render('documents/upload', { message: 'File too large. Max size is 10MB.', navActive: 'upload' });
+    return res.redirect('/documents/upload?error=' + encodeURIComponent('File too large. Max size is 10MB.'));
   }
   if (err.message && err.message.includes('Invalid file type')) {
-    return res.status(400).render('documents/upload', { message: err.message, navActive: 'upload' });
+    return res.redirect('/documents/upload?error=' + encodeURIComponent(err.message));
   }
   console.error(err);
-  res.status(500).render('error', { message: err.message || 'Something went wrong.' });
+  res.status(500).type('text').send(err.message || 'Something went wrong.');
 });
 
 const { ensureDocumentTypeColumn } = require('./lib/migrate-document-type');
@@ -440,6 +329,10 @@ const { ensureFileTypeColumnSize } = require('./lib/migrate-file-type');
 const { ensureTwoFactorColumns } = require('./lib/migrate-two-factor');
 const { ensureRolesAndCompanies } = require('./lib/migrate-roles-companies');
 const { ensureDocumentApprovalColumn } = require('./lib/migrate-document-approval');
+const { ensureNotificationReads } = require('./lib/migrate-notification-reads');
+const { ensureUserPhoneColumn } = require('./lib/migrate-user-phone');
+const { ensureDocumentRejectionReasonColumn } = require('./lib/migrate-document-rejection-reason');
+const { ensureUserAvatarColumn } = require('./lib/migrate-user-avatar');
 
 (async function runMigrationsThenListen() {
   try {
@@ -448,10 +341,15 @@ const { ensureDocumentApprovalColumn } = require('./lib/migrate-document-approva
     await ensureTwoFactorColumns();
     await ensureRolesAndCompanies();
     await ensureDocumentApprovalColumn();
+    await ensureDocumentRejectionReasonColumn();
+    await ensureNotificationReads();
+    await ensureUserPhoneColumn();
+    await ensureUserAvatarColumn();
   } catch (err) {
     console.warn('Migration:', err.message);
   }
   app.listen(PORT, () => {
     console.log(`MedSupply Portal running at http://localhost:${PORT}`);
+    logSmtpStartupHint();
   });
 })();

@@ -24,16 +24,12 @@ const authLogin = rateLimit({
     }
     const msg = 'Too many sign-in attempts. Please wait a few minutes and try again.';
     if ((req.path || '').includes('/login/2fa')) {
-      return res.status(options.statusCode).render('login-2fa', {
-        token: (req.body && req.body.token) || (req.query && req.query.token) || '',
-        message: msg,
-        alertType: 'error',
-      });
+      const token = ((req.body && req.body.token) || (req.query && req.query.token) || '').toString().trim();
+      return res.redirect(
+        `/login/2fa?token=${encodeURIComponent(token)}&message=${encodeURIComponent(msg)}&error=1`
+      );
     }
-    res.status(options.statusCode).render('login', {
-      message: msg,
-      alertType: 'error',
-    });
+    return res.redirect(`/login?message=${encodeURIComponent(msg)}&error=1`);
   },
 });
 
@@ -45,10 +41,11 @@ const authForgot = rateLimit({
   legacyHeaders: false,
   handler: (req, res) => {
     onLimitReached(req);
-    res.status(429).render('forgot-password', {
-      message: 'Too many requests. Please try again later.',
-      alertType: 'error',
-    });
+    const msg = 'Too many requests. Please try again later.';
+    if ((req.originalUrl || '').startsWith('/api/')) {
+      return res.status(429).json({ error: msg });
+    }
+    res.redirect('/forgot-password?message=' + encodeURIComponent(msg));
   },
 });
 
@@ -61,11 +58,8 @@ const documentUpload = rateLimit({
   skipSuccessfulRequests: true,
   handler: (req, res) => {
     onLimitReached(req);
-    const locals = { message: 'Too many uploads in a short period. Please try again later.', navActive: 'upload' };
-    if (req.session && req.session.role && isSystemAdmin(req.session.role)) {
-      locals.adminPageTitle = 'Upload document';
-    }
-    res.status(429).render('documents/upload', locals);
+    const msg = 'Too many uploads in a short period. Please try again later.';
+    return res.redirect('/documents/upload?error=' + encodeURIComponent(msg));
   },
 });
 
