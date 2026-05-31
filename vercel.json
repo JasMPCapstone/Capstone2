@@ -1,0 +1,9 @@
+{
+  "version": 2,
+  "installCommand": "npm install && npm install --prefix client",
+  "buildCommand": "npm run build:client",
+  "rewrites": [{ "source": "/(.*)", "destination": "/api/index.js" }],
+  "functions": {
+    "api/index.js": { "maxDuration": 30 }
+  }
+}
