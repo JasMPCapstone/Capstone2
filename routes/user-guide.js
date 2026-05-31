@@ -6,17 +6,11 @@ const { requireApiSession, requireApiSystemAdmin } = require('../middleware/auth
 const { getStorage, isCloudStorage, driverName } = require('../lib/storage');
 const { pool } = require('../config/database');
 const { log } = require('../lib/audit');
-const { uploadDir } = require('../middleware/upload');
 
 const USER_GUIDE_MAX_BYTES = parseInt(process.env.USER_GUIDE_MAX_BYTES || String(25 * 1024 * 1024), 10);
 const USER_GUIDE_KEY = (process.env.USER_GUIDE_OBJECT_KEY || 'user-guide/current.pdf').trim();
 const userGuideDir = path.join(process.cwd(), 'uploads', 'user-guide');
 const userGuideLocalPath = path.join(userGuideDir, 'current.pdf');
-// On Vercel (and other read-only serverless envs) /var/task is immutable; /tmp is the only writable space.
-const isVercel = !!process.env.VERCEL;
-const userGuideTmpDir = isVercel
-  ? path.join('/tmp', 'user-guide-tmp')
-  : path.join(uploadDir, 'user-guide-tmp');
 
 // ── app_settings helpers ────────────────────────────────────────────────────
 async function getUserGuideUrl() {
@@ -41,13 +35,15 @@ async function setUserGuideUrl(url) {
 }
 // ───────────────────────────────────────────────────────────────────────────
 
-// Memory storage for blob driver; disk storage otherwise
-const userGuideStorage = driverName() === 'blob'
+// Cloud drivers (s3, blob) use memory storage — no temp directory needed on the filesystem.
+// Local driver writes to disk as before.
+const userGuideStorage = isCloudStorage()
   ? multer.memoryStorage()
   : multer.diskStorage({
       destination: (req, file, cb) => {
-        fs.mkdirSync(userGuideTmpDir, { recursive: true });
-        cb(null, userGuideTmpDir);
+        const tmpDir = path.join(userGuideDir, 'tmp');
+        fs.mkdirSync(tmpDir, { recursive: true });
+        cb(null, tmpDir);
       },
       filename: (req, file, cb) => cb(null, `ug-${Date.now()}.pdf`),
     });
@@ -150,12 +146,7 @@ router.post(
         const blobUrl = await getStorage().putBuffer(req.file.buffer, USER_GUIDE_KEY, 'application/pdf');
         await setUserGuideUrl(blobUrl);
       } else if (driverName() === 's3') {
-        const tempPath = req.file.path;
-        try {
-          await getStorage().putFileFromPath(tempPath, USER_GUIDE_KEY, 'application/pdf');
-        } finally {
-          try { if (fs.existsSync(tempPath)) await fs.promises.unlink(tempPath); } catch (_) {}
-        }
+        await getStorage().putBuffer(req.file.buffer, USER_GUIDE_KEY, 'application/pdf');
       } else {
         const tempPath = req.file.path;
         try {
